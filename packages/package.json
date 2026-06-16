@@ -1,0 +1,8 @@
+{
+  "name": "@rtc/packages",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./index.ts"
+  }
+}

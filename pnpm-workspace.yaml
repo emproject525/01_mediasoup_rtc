@@ -1,0 +1,7 @@
+packages:
+  - app
+  - mediasoup
+  - packages/*
+allowBuilds:
+  esbuild: true
+  mediasoup: true

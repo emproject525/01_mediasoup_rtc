@@ -1,0 +1,10 @@
+{
+  "name": "01-mediasoup-rtc",
+  "private": true,
+  "packageManager": "pnpm@11.7.0",
+  "scripts": {
+    "dev:app": "pnpm --workspace app run dev",
+    "dev:mediasoup": "pnpm --workspace mediasoup run dev",
+    "typecheck:mediasoup": "pnpm --workspace mediasoup run typecheck"
+  }
+}
