@@ -3,8 +3,11 @@
   "private": true,
   "packageManager": "pnpm@11.7.0",
   "scripts": {
-    "dev:app": "pnpm --workspace app run dev",
-    "dev:mediasoup": "pnpm --workspace mediasoup run dev",
-    "typecheck:mediasoup": "pnpm --workspace mediasoup run typecheck"
+    "dev:app": "pnpm --filter @rtc/app dev",
+    "dev:mediasoup": "pnpm --filter @rtc/mediasoup dev",
+    "typecheck:mediasoup": "pnpm --filter @rtc/mediasoup typecheck",
+    "prepare": "git config core.hooksPath .githooks",
+    "build": "pnpm --filter @rtc/mediasoup build",
+    "check:precommit": "pnpm build"
   }
 }

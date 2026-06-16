@@ -1,18 +1,18 @@
-import type { RtpCodecCapability } from 'mediasoup/node/lib/RtpParametersTypes.js';
+import type { RouterRtpCodecCapability } from "mediasoup/types";
 
-export const mediaCodecs: RtpCodecCapability[] = [
+export const mediaCodecs: RouterRtpCodecCapability[] = [
   {
-    kind: 'audio',
-    mimeType: 'audio/opus',
+    kind: "audio",
+    mimeType: "audio/opus",
     clockRate: 48000,
-    channels: 2
+    channels: 2,
   },
   {
-    kind: 'video',
-    mimeType: 'video/VP8',
+    kind: "video",
+    mimeType: "video/VP8",
     clockRate: 90000,
     parameters: {
-      'x-google-start-bitrate': 1000
-    }
-  }
+      "x-google-start-bitrate": 1000,
+    },
+  },
 ];
