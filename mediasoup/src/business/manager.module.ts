@@ -1,5 +1,5 @@
-import { Room } from "./room.module.js";
-import type { SingleWorkerType } from "../sfu/sfu.types.js";
+import { Room } from "./room.module";
+import type { SingleWorkerType } from "../sfu";
 
 export class RoomManager {
   private readonly rooms = new Map<string, Room>();

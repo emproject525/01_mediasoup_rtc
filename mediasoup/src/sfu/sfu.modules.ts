@@ -1,7 +1,7 @@
 import { createWorker } from "mediasoup";
 import type { Router, Worker } from "mediasoup/types";
-import { MediaCodecs } from "./sfu.constants.js";
-import type { SingleWorkerType } from "./sfu.types.js";
+import { MediaCodecs } from "./sfu.constants";
+import type { SingleWorkerType } from "./sfu.types";
 
 class SingleWorker implements SingleWorkerType {
   constructor(private readonly worker: Worker) {}

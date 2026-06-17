@@ -1,3 +1,3 @@
-export * from "./manager.module.js";
-export * from "./room.module.js";
-export * from "./peer.module.js";
+export * from "./manager.module";
+export * from "./room.module";
+export * from "./peer.module";

@@ -1,13 +1,10 @@
 import { Router } from "mediasoup/types";
-import { Peer } from "./peer.module.js";
+import { Peer } from "./peer.module";
 
 export class Room {
   readonly peers = new Map<string, Peer>();
 
-  constructor(
-    readonly id: string,
-    readonly router: Router,
-  ) {}
+  constructor(readonly id: string, readonly router: Router) {}
 
   getOrCreatePeer(peerId: string) {
     const existingPeer = this.peers.get(peerId);
@@ -16,7 +13,7 @@ export class Room {
       return existingPeer;
     }
 
-    const peer = new Peer(peerId);
+    const peer = new Peer(peerId, this.router);
     this.peers.set(peerId, peer);
 
     return peer;

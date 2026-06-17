@@ -1,3 +1,3 @@
-export * from "./sfu.constants.js";
-export * from "./sfu.types.js";
-export * from "./sfu.modules.js";
+export * from "./sfu.constants";
+export * from "./sfu.types";
+export * from "./sfu.modules";
