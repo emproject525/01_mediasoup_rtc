@@ -1,17 +1,21 @@
 import { SignalingEvent } from "./common.constants";
 
-/** 이벤트 이름 유니온 — 이름 그 자체만 필요할 때(로깅 등) 사용 */
-export type SignalingEventType =
-  (typeof SignalingEvent)[keyof typeof SignalingEvent];
-
 export type ErrorResponse = { error: string };
 
 /** {@link SignalingEvent.RoomJoin} 요청 payload */
-export type JoinRoomRequest = { roomId: string };
+export type RoomJoinRequest = { roomId: string };
 
 /** {@link SignalingEvent.RoomJoin} 응답(ack) */
-export type JoinRoomResponse =
-  | { peerId: string; routerRtpCapabilities: unknown } // mediasoup RtpCapabilities (클라에서 좁히기)
+export type RoomJoinResponse =
+  | {
+      peerId: string;
+      routerRtpCapabilities: unknown;
+      producers: {
+        peerId: string;
+        producerId: string;
+        kind: "audio" | "video";
+      }[];
+    }
   | ErrorResponse;
 
 /** {@link SignalingEvent.TransportCreate} 요청 payload */
@@ -27,6 +31,20 @@ export type TransportCreateResponse =
       iceParameters: unknown; // WebRTC 연결에 쓰이는 데이터
       iceCandidates: unknown[]; // WebRTC 연결에 쓰이는 데이터
       dtlsParameters: unknown; // WebRTC 연결에 쓰이는 데이터
+    }
+  | ErrorResponse;
+
+/** {@link SignalingEvent.TransportConnect} 요청 payload */
+export type TransportConnectRequest = {
+  roomId: string;
+  transportId: string;
+  dtlsParameters: unknown;
+};
+
+/** {@link SignalingEvent.TransportConnect} 응답(ack) */
+export type TransportConnectResponse =
+  | {
+      success: boolean;
     }
   | ErrorResponse;
 
@@ -49,30 +67,45 @@ export type ProduceCloseRequest = {
 /** {@link SignalingEvent.ProduceClose} 응답(ack) */
 export type ProduceCloseResponse = { success: boolean } | ErrorResponse;
 
+/** {@link SignalingEvent.Consume} 요청 payload */
+export type ConsumeRequest = {
+  roomId: string;
+  producerId: string;
+  rtpCapabilities: unknown;
+};
+
+/** {@link SignalingEvent.Consume} 응답(ack) */
+export type ConsumeResponse =
+  | { consumerId: string; kind: "audio" | "video"; rtpParameters: unknown }
+  | ErrorResponse;
+
 /**
  * 클라이언트 → 서버 (서버가 socket.on 으로 받는 이벤트들)
  * 키 = 이벤트 이름, 값 = 핸들러 시그니처
  */
 export interface ClientToServerEvents {
   [SignalingEvent.RoomJoin]: (
-    req: JoinRoomRequest,
-    ack: (res: JoinRoomResponse) => void
+    req: RoomJoinRequest,
+    ack: (res: RoomJoinResponse) => void,
   ) => void;
   [SignalingEvent.TransportCreate]: (
     req: TransportCreateRequest,
-    ack: (res: TransportCreateResponse) => void
+    ack: (res: TransportCreateResponse) => void,
+  ) => void;
+  [SignalingEvent.TransportConnect]: (
+    req: TransportConnectRequest,
+    ack: (res: TransportConnectResponse) => void,
   ) => void;
   [SignalingEvent.Produce]: (
     req: ProduceRequest,
-    ack: (res: ProduceResponse) => void
+    ack: (res: ProduceResponse) => void,
   ) => void;
   [SignalingEvent.ProduceClose]: (
     req: ProduceCloseRequest,
-    ack: (res: ProduceCloseResponse) => void
+    ack: (res: ProduceCloseResponse) => void,
   ) => void;
-}
-
-/** 서버 → 클라이언트 (서버가 socket.emit 으로 보내는 이벤트들) */
-export interface ServerToClientEvents {
-  // 예) "peer:joined": (peerId: string) => void;  ← 나중에 추가
+  [SignalingEvent.Consume]: (
+    req: ConsumeRequest,
+    ack: (res: ConsumeResponse) => void,
+  ) => void;
 }

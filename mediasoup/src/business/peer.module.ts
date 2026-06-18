@@ -1,7 +1,10 @@
 import {
+  Consumer,
+  DtlsParameters,
   MediaKind,
   Producer,
   Router,
+  RtpCapabilities,
   RtpParameters,
   WebRtcTransport,
 } from "mediasoup/types";
@@ -10,8 +13,12 @@ export class Peer {
   private _sendTransport?: WebRtcTransport;
   private _recvTransport?: WebRtcTransport;
   private _producers: Map<string, Producer> = new Map();
+  private _consumers: Map<string, Consumer> = new Map();
 
-  constructor(readonly id: string, readonly router: Router) {}
+  constructor(
+    readonly id: string,
+    readonly router: Router,
+  ) {}
 
   async getOrCreateSendTransport() {
     if (this._sendTransport) return this._sendTransport;
@@ -39,6 +46,22 @@ export class Peer {
     return this._recvTransport;
   }
 
+  async connectTransport(transportId: string, dtlsParameters: DtlsParameters) {
+    const target =
+      this._recvTransport?.id === transportId
+        ? this._recvTransport
+        : this._sendTransport?.id === transportId
+          ? this._sendTransport
+          : null;
+
+    if (target) {
+      await target.connect({ dtlsParameters });
+      return true;
+    }
+
+    return false;
+  }
+
   async produce(kind: MediaKind, rtpParameters: RtpParameters) {
     const pr = await this._sendTransport?.produce({
       kind,
@@ -47,7 +70,7 @@ export class Peer {
 
     if (pr) {
       this._producers.set(pr.id, pr);
-      return pr.id;
+      return pr;
     }
   }
 
@@ -61,9 +84,31 @@ export class Peer {
     return true;
   }
 
+  async consume(producerId: string, rtpCapabilities: RtpCapabilities) {
+    const co = await this._recvTransport?.consume({
+      producerId,
+      rtpCapabilities,
+    });
+
+    if (co) {
+      co.on("transportclose", () => {
+        this._consumers.delete(co.id);
+      });
+      this._consumers.set(co.id, co);
+      return co;
+    }
+  }
+
+  getProducers() {
+    return this._producers.values();
+  }
+
   close() {
     this._producers.forEach((pr) => pr.close());
     this._producers.clear();
+
+    this._consumers.forEach((co) => co.close());
+    this._consumers.clear();
 
     this._sendTransport?.close();
     this._recvTransport?.close();

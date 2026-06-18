@@ -6,7 +6,11 @@ import {
   type ClientToServerEvents,
   type ServerToClientEvents,
 } from "@rtc/packages";
-import { RtpParameters } from "mediasoup/types";
+import {
+  DtlsParameters,
+  RtpCapabilities,
+  RtpParameters,
+} from "mediasoup/types";
 
 export function createSignalingServer({
   port,
@@ -20,7 +24,7 @@ export function createSignalingServer({
         origin: true,
         credentials: true,
       },
-    }
+    },
   );
 
   io.on("connection", (socket) => {
@@ -33,11 +37,18 @@ export function createSignalingServer({
           const room = await roomManager.getOrCreateRoom(roomId);
           const peer = room.getOrCreatePeer(socket.id);
 
-          socket.join(roomId);
+          await socket.join(roomId);
+
+          const producers = room.producers(peer.id);
 
           ack({
             peerId: peer.id,
             routerRtpCapabilities: room.router.rtpCapabilities,
+            producers,
+          });
+
+          socket.to(roomId).emit(SignalingEvent.EventPeerJoined, {
+            peerId: peer.id,
           });
         } catch (error) {
           ack({
@@ -72,7 +83,30 @@ export function createSignalingServer({
                 error instanceof Error ? error.message : "failed to join room",
             });
           }
-        }
+        },
+      )
+      .on(
+        SignalingEvent.TransportConnect,
+        async ({ roomId, transportId, dtlsParameters }, ack) => {
+          try {
+            const room = await roomManager.getOrCreateRoom(roomId);
+            const peer = room.getOrCreatePeer(socket.id);
+
+            if (!peer) throw new Error("no peer");
+
+            const success = await peer.connectTransport(
+              transportId,
+              dtlsParameters as DtlsParameters,
+            );
+
+            ack({ success });
+          } catch (error) {
+            ack({
+              error:
+                error instanceof Error ? error.message : "failed to join room",
+            });
+          }
+        },
       )
       .on(
         SignalingEvent.Produce,
@@ -83,15 +117,24 @@ export function createSignalingServer({
 
             if (!peer) throw new Error("no peer");
 
-            const producerId = await peer.produce(
+            const producer = await peer.produce(
               kind,
-              rtpParameters as RtpParameters
+              rtpParameters as RtpParameters,
             );
 
-            if (!producerId) throw new Error("fail to produce");
+            if (!producer) throw new Error("fail to produce");
 
-            ack({
-              producerId,
+            producer.on("@close", () => {
+              socket
+                .to(room.id)
+                .emit("event:producer:closed", { producerId: producer.id });
+            });
+            ack({ producerId: producer.id });
+
+            socket.to(roomId).emit(SignalingEvent.EventProducerNew, {
+              producerId: producer.id,
+              peerId: peer.id,
+              kind,
             });
           } catch (error) {
             ack({
@@ -99,7 +142,7 @@ export function createSignalingServer({
                 error instanceof Error ? error.message : "failed to join room",
             });
           }
-        }
+        },
       )
       .on(SignalingEvent.ProduceClose, async ({ roomId, producerId }, ack) => {
         try {
@@ -116,7 +159,36 @@ export function createSignalingServer({
               error instanceof Error ? error.message : "failed to join room",
           });
         }
-      });
+      })
+      .on(
+        SignalingEvent.Consume,
+        async ({ roomId, producerId, rtpCapabilities }, ack) => {
+          try {
+            const room = await roomManager.getOrCreateRoom(roomId);
+            const peer = room.getOrCreatePeer(socket.id);
+
+            if (!peer) throw new Error("no peer");
+
+            const consumer = await peer.consume(
+              producerId,
+              rtpCapabilities as RtpCapabilities,
+            );
+
+            if (!consumer) throw new Error("fail to consume");
+
+            ack({
+              consumerId: consumer.id,
+              kind: consumer.kind,
+              rtpParameters: consumer.rtpParameters,
+            });
+          } catch (error) {
+            ack({
+              error:
+                error instanceof Error ? error.message : "failed to join room",
+            });
+          }
+        },
+      );
 
     // disconnect 시점엔 socket.rooms 가 이미 비므로, disconnecting 에서 처리
     socket.on("disconnecting", () => {
