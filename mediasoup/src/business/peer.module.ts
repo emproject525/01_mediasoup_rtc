@@ -1,4 +1,4 @@
-import { SignalingError, SignalingErrorCode } from "@rtc/packages";
+import { SignalingError } from "@rtc/packages";
 import {
   Consumer,
   DtlsParameters,
@@ -9,6 +9,7 @@ import {
   RtpParameters,
   WebRtcTransport,
 } from "mediasoup/types";
+import { config } from "../config/env";
 
 export class Peer {
   private _sendTransport?: WebRtcTransport;
@@ -16,20 +17,19 @@ export class Peer {
   private _producers: Map<string, Producer> = new Map();
   private _consumers: Map<string, Consumer> = new Map();
 
-  constructor(
-    readonly id: string,
-    readonly router: Router,
-  ) {}
+  constructor(readonly id: string, readonly router: Router) {}
 
   async getOrCreateSendTransport() {
     if (this._sendTransport) return this._sendTransport;
 
     this._sendTransport = await this.router.createWebRtcTransport({
-      listenIps: [{ ip: "0.0.0.0", announcedIp: undefined }],
+      listenIps: [{ ip: config.listenIp, announcedIp: config.announcedIp }],
       enableUdp: true,
       enableTcp: true,
       preferUdp: true,
     });
+
+    console.log("[send] iceCandidates", this._sendTransport.iceCandidates);
 
     return this._sendTransport;
   }
@@ -38,11 +38,13 @@ export class Peer {
     if (this._recvTransport) return this._recvTransport;
 
     this._recvTransport = await this.router.createWebRtcTransport({
-      listenIps: [{ ip: "0.0.0.0", announcedIp: undefined }],
+      listenIps: [{ ip: config.listenIp, announcedIp: config.announcedIp }],
       enableUdp: true,
       enableTcp: true,
       preferUdp: true,
     });
+
+    console.log("[recv] iceCandidates", this._recvTransport.iceCandidates);
 
     return this._recvTransport;
   }
@@ -52,8 +54,8 @@ export class Peer {
       this._recvTransport?.id === transportId
         ? this._recvTransport
         : this._sendTransport?.id === transportId
-          ? this._sendTransport
-          : null;
+        ? this._sendTransport
+        : null;
 
     if (target) {
       await target.connect({ dtlsParameters });

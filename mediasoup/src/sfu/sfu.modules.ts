@@ -17,6 +17,11 @@ class SingleWorker implements SingleWorkerType {
     return routerOne;
   }
 
+  closeRouter(routerId: string): void {
+    this._routers.get(routerId)?.close();
+    this._routers.delete(routerId);
+  }
+
   close() {
     this._routers.forEach((routerOne) => {
       routerOne.close();
@@ -32,8 +37,8 @@ export async function createSingleWorker(): Promise<SingleWorker> {
     rtcMaxPort: 49999,
   });
 
-  worker.on("died", () => {
-    console.error("[mediasoup] worker died");
+  worker.on("died", (error) => {
+    console.error("[mediasoup] worker died", error);
     process.exit(1);
   });
 

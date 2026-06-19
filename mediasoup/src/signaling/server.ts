@@ -28,12 +28,12 @@ export function createSignalingServer({
         origin: true,
         credentials: true,
       },
-    },
+    }
   );
 
   const getErrorResponse = (
     error: unknown,
-    code?: SignalingErrorCodeValue,
+    code?: SignalingErrorCodeValue
   ): ErrorResponse => {
     if (error instanceof SignalingError) {
       return { code: error.code, message: null };
@@ -95,10 +95,10 @@ export function createSignalingServer({
             });
           } catch (error) {
             ack(
-              getErrorResponse(error, SignalingErrorCode.TransportCreateFailed),
+              getErrorResponse(error, SignalingErrorCode.TransportCreateFailed)
             );
           }
-        },
+        }
       )
       .on(
         SignalingEvent.TransportConnect,
@@ -111,19 +111,16 @@ export function createSignalingServer({
 
             const success = await peer.connectTransport(
               transportId,
-              dtlsParameters as DtlsParameters,
+              dtlsParameters as DtlsParameters
             );
 
             ack({ success });
           } catch (error) {
             ack(
-              getErrorResponse(
-                error,
-                SignalingErrorCode.TransportConnectFailed,
-              ),
+              getErrorResponse(error, SignalingErrorCode.TransportConnectFailed)
             );
           }
-        },
+        }
       )
       .on(
         SignalingEvent.Produce,
@@ -136,7 +133,7 @@ export function createSignalingServer({
 
             const producer = await peer.produce(
               kind,
-              rtpParameters as RtpParameters,
+              rtpParameters as RtpParameters
             );
 
             if (!producer) throw new SignalingError("ProduceFailed");
@@ -151,7 +148,7 @@ export function createSignalingServer({
           } catch (error) {
             ack(getErrorResponse(error, SignalingErrorCode.ProduceFailed));
           }
-        },
+        }
       )
       .on(SignalingEvent.ProduceClose, async ({ roomId, producerId }, ack) => {
         try {
@@ -177,7 +174,7 @@ export function createSignalingServer({
 
             const consumer = await peer.consume(
               producerId,
-              rtpCapabilities as RtpCapabilities,
+              rtpCapabilities as RtpCapabilities
             );
 
             if (!consumer) throw new SignalingError("ConsumeFailed");
@@ -197,7 +194,7 @@ export function createSignalingServer({
           } catch (error) {
             ack(getErrorResponse(error, SignalingErrorCode.ConsumeFailed));
           }
-        },
+        }
       )
       .on(SignalingEvent.ConsumeResume, async ({ roomId, consumerId }, ack) => {
         try {

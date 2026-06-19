@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@rtc/packages": "workspace:*",
+    "eventemitter3": "^5.0.4",
     "mediasoup-client": "^3.21.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",

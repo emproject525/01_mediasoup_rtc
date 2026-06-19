@@ -21,10 +21,16 @@ export class RoomManager {
     const target = this.rooms.get(roomId);
     if (!target) return;
 
-    target.router.close();
+    this.mediasoupWorker.closeRouter(roomId);
     this.rooms.delete(target.id);
   }
 
+  /**
+   * room에서 peer 제거
+   * @param roomId
+   * @param peerId
+   * @returns room에 남은 peer 수
+   */
   removePeer(roomId: string, peerId: string) {
     const target = this.rooms.get(roomId);
     if (!target) return;

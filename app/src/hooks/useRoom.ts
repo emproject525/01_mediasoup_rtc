@@ -1,7 +1,10 @@
 import { useCallback, useRef, useState } from "react";
 import { SignalingEvent } from "@rtc/packages";
-import { createSocket, type AppSocket } from "../lib/socket";
-import { RtcClient, type RemoteStream } from "../lib/rtcClient";
+import { createSocket, type AppSocket } from "../lib/socket.module";
+import {
+  MediaSoupClient,
+  type RemoteStream,
+} from "../lib/mediasoup.client.module";
 import { SIGNALING_URL } from "../lib/config";
 
 export type RoomStatus = "idle" | "connecting" | "joined" | "error";
@@ -14,11 +17,22 @@ export function useRoom() {
   const [logs, setLogs] = useState<string[]>([]);
 
   const socketRef = useRef<AppSocket>(null);
-  const clientRef = useRef<RtcClient>(null);
+  const clientRef = useRef<MediaSoupClient>(null);
   const localStreamRef = useRef<MediaStream>(null);
 
   const log = useCallback((msg: string) => {
     setLogs((prev) => [...prev, msg]);
+  }, []);
+
+  const getUserStream = useCallback(async () => {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const hasAudio = devices.filter((d) => d.kind === "audioinput").length > 0;
+    const hasVideo = devices.filter((d) => d.kind === "videoinput").length > 0;
+
+    return await navigator.mediaDevices.getUserMedia({
+      audio: hasAudio,
+      video: hasVideo,
+    });
   }, []);
 
   const join = useCallback(
@@ -26,47 +40,48 @@ export function useRoom() {
       if (status === "connecting" || status === "joined") return;
       try {
         setStatus("connecting");
-        log(`connecting to ${SIGNALING_URL} ...`);
+        log(`Connecting to ${SIGNALING_URL} ...`);
 
         const socket = createSocket(SIGNALING_URL);
         socketRef.current = socket;
         socket.connect();
 
-        const client = new RtcClient(socket, roomId);
+        const client = new MediaSoupClient(socket, roomId);
+        client.onConnectionStateChanged(({ direction, state }) =>
+          log(`[${direction.toUpperCase()}] Transport State is ${state}`)
+        );
+        client.onLog((message) => log(message));
         clientRef.current = client;
 
         // 입장 전에 리스너 등록 — 알림을 놓치지 않도록
         socket.on(SignalingEvent.EventPeerJoined, ({ peerId }) => {
-          log(`peer joined: ${peerId}`);
+          log(`Peer Joined: ${peerId}`);
         });
         socket.on(
           SignalingEvent.EventProducerNew,
           async ({ producerId, peerId, kind }) => {
-            log(`new producer: ${kind} from ${peerId}`);
+            log(`NEW Producer: ${kind} from ${peerId}`);
             const remote = await client.consume(producerId, peerId);
             if (remote) setRemotes((prev) => [...prev, remote]);
-          },
+          }
         );
         socket.on(SignalingEvent.EventProducerClosed, ({ producerId }) => {
-          log(`producer closed: ${producerId}`);
+          log(`Producer Closed: ${producerId}`);
           client.removeByProducerId(producerId);
           setRemotes((prev) => prev.filter((r) => r.producerId !== producerId));
         });
 
         const { peerId, producers } = await client.join();
         setPeerId(peerId);
-        log(`joined room "${roomId}" as ${peerId}`);
+        log(`Joined Room "${roomId}" as ${peerId}`);
 
         // 로컬 미디어 송출
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: true,
-        });
+        const stream = await getUserStream();
         localStreamRef.current = stream;
         setLocalStream(stream);
         for (const track of stream.getTracks()) {
           await client.produce(track);
-          log(`producing ${track.kind}`);
+          log(`Producing ${track.kind} ...`);
         }
 
         // 기존 producer 수신
@@ -78,10 +93,10 @@ export function useRoom() {
         setStatus("joined");
       } catch (error) {
         setStatus("error");
-        log(`error: ${error instanceof Error ? error.message : String(error)}`);
+        log(`Error: ${error instanceof Error ? error.message : String(error)}`);
       }
     },
-    [status, log],
+    [status, log]
   );
 
   const leave = useCallback(() => {
