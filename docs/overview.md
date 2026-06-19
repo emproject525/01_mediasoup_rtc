@@ -45,12 +45,11 @@ mediasoup SFU 기반의 N:N 화상 통신 데모. 브라우저 여러 개로 같
 | `consume:resume`                   | ✅   | 클라 화면 연결 후 서버측 Consumer resume                   |
 | `event:producer:closed`            | ✅   | `producerclose` 시 구독자 본인에게 개별 알림               |
 | 에러 응답                          | ✅   | `SignalingErrorCode` 기반 `{ code, message }` 통일         |
-| 연결 종료 정리                     | ✅   | `disconnecting` → peer 제거, 빈 방 router close            |
-| 브라우저 클라이언트 (`app/`)       | ❌   | 아직 없음                                                  |
+| 연결 종료 정리                     | ✅   | `disconnecting` → peer 제거 + `peer.close()`, 빈 방 router close |
+| 브라우저 클라이언트 (`app/`)       | ✅   | Vite 8 / React 19, 핸드셰이크 전체 구현 (실기기 미디어 검증 전) |
 
 ### 알려진 보강 포인트
 
-- **(버그) peer 자원 누수** — `room.removePeer`가 `peer.close()`를 호출하지 않아, 방에 다른 참가자가 남아있는 채로 한 명만 나가면 그 peer의 transport/producer/consumer가 정리되지 않는다. (빈 방은 `router.close()`로 정리됨)
 - **(마이너) `producerclose` 시 `_consumers` 맵 미정리** — `transportclose`에서만 맵을 비운다. producer 종료 경로에서도 맵 정리 필요.
 - **(참고) `listenIps.announcedIp` 미설정** — 같은 PC localhost 2탭은 동작하나, 다른 기기/배포 환경에선 도달 가능한 IP 지정 필요.
 
@@ -60,7 +59,18 @@ mediasoup SFU 기반의 N:N 화상 통신 데모. 브라우저 여러 개로 같
 ## 기술 스택
 
 - **SFU**: mediasoup (Node.js)
-- **시그널링**: socket.io
+- **시그널링**: socket.io (서버) / socket.io-client (클라)
+- **클라이언트**: Vite 8 (Rolldown) + React 19, mediasoup-client
 - **코덱**: 비디오 VP8 / 오디오 Opus (`mediasoup/src/sfu/mediaCodecs.ts`)
 - **언어**: TypeScript (ESM)
-- **모노레포**: pnpm workspace (`mediasoup/`, `packages/`, 예정 `app/`)
+- **모노레포**: pnpm workspace (`app/`, `mediasoup/`, `packages/`)
+- **프로토콜 공유**: `@rtc/packages`를 서버·클라가 함께 import (이벤트/요청·응답 타입 1:1)
+
+## 실행
+
+```bash
+pnpm dev:mediasoup   # 시그널링/SFU 서버 (:4000)
+pnpm dev:app         # 브라우저 클라 (:5173)
+```
+
+브라우저 2탭으로 같은 room id 입장 → 양방향 영상/음성 확인.

@@ -5,7 +5,7 @@ import {
   ErrorResponse,
   SignalingError,
   SignalingErrorCode,
-  SignalingErrorCodeValue,
+  type SignalingErrorCodeValue,
   SignalingEvent,
   type ClientToServerEvents,
   type ServerToClientEvents,
