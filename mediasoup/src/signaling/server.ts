@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 import { Server } from "socket.io";
 import { SignalingServerOptions } from "./server.types";
 import {
+  SignalingErrorCode,
   SignalingEvent,
   type ClientToServerEvents,
   type ServerToClientEvents,
@@ -52,8 +53,8 @@ export function createSignalingServer({
           });
         } catch (error) {
           ack({
-            error:
-              error instanceof Error ? error.message : "failed to join room",
+            code: SignalingErrorCode.RoomJoinFailed,
+            message: error instanceof Error ? error.message : null,
           });
         }
       })
@@ -79,8 +80,8 @@ export function createSignalingServer({
             });
           } catch (error) {
             ack({
-              error:
-                error instanceof Error ? error.message : "failed to join room",
+              code: SignalingErrorCode.TransportCreateFailed,
+              message: error instanceof Error ? error.message : null,
             });
           }
         },
@@ -102,8 +103,8 @@ export function createSignalingServer({
             ack({ success });
           } catch (error) {
             ack({
-              error:
-                error instanceof Error ? error.message : "failed to join room",
+              code: SignalingErrorCode.TransportConnectFailed,
+              message: error instanceof Error ? error.message : null,
             });
           }
         },
@@ -124,11 +125,6 @@ export function createSignalingServer({
 
             if (!producer) throw new Error("fail to produce");
 
-            producer.on("@close", () => {
-              socket
-                .to(room.id)
-                .emit("event:producer:closed", { producerId: producer.id });
-            });
             ack({ producerId: producer.id });
 
             socket.to(roomId).emit(SignalingEvent.EventProducerNew, {
@@ -138,8 +134,8 @@ export function createSignalingServer({
             });
           } catch (error) {
             ack({
-              error:
-                error instanceof Error ? error.message : "failed to join room",
+              code: SignalingErrorCode.ProduceFailed,
+              message: error instanceof Error ? error.message : null,
             });
           }
         },
@@ -155,8 +151,8 @@ export function createSignalingServer({
           ack({ success });
         } catch (error) {
           ack({
-            error:
-              error instanceof Error ? error.message : "failed to join room",
+            code: SignalingErrorCode.ProduceCloseFailed,
+            message: error instanceof Error ? error.message : null,
           });
         }
       })
@@ -176,15 +172,22 @@ export function createSignalingServer({
 
             if (!consumer) throw new Error("fail to consume");
 
+            consumer.on("producerclose", () => {
+              socket.emit("event:producer:closed", {
+                producerId,
+              });
+            });
+
             ack({
               consumerId: consumer.id,
+              producerId,
               kind: consumer.kind,
               rtpParameters: consumer.rtpParameters,
             });
           } catch (error) {
             ack({
-              error:
-                error instanceof Error ? error.message : "failed to join room",
+              code: SignalingErrorCode.ConsumeFailed,
+              message: error instanceof Error ? error.message : null,
             });
           }
         },

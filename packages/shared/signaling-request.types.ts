@@ -1,6 +1,9 @@
-import { SignalingEvent } from "./common.constants";
+import { SignalingEvent, SignalingErrorCodeValue } from "./common.constants";
 
-export type ErrorResponse = { error: string };
+export type ErrorResponse = {
+  code: SignalingErrorCodeValue;
+  message: null | string;
+};
 
 /** {@link SignalingEvent.RoomJoin} 요청 payload */
 export type RoomJoinRequest = { roomId: string };
@@ -76,7 +79,12 @@ export type ConsumeRequest = {
 
 /** {@link SignalingEvent.Consume} 응답(ack) */
 export type ConsumeResponse =
-  | { consumerId: string; kind: "audio" | "video"; rtpParameters: unknown }
+  | {
+      consumerId: string;
+      kind: "audio" | "video";
+      producerId: string;
+      rtpParameters: unknown;
+    }
   | ErrorResponse;
 
 /**
