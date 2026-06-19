@@ -87,6 +87,12 @@ export type ConsumeResponse =
     }
   | ErrorResponse;
 
+/** {@link SignalingEvent.ConsumeResume} 요청 payload */
+export type ConsumeResumeRequest = { roomId: string; consumerId: string };
+
+/** {@link SignalingEvent.ConsumeResume} 응답(ack) */
+export type ConsumeResumeResponse = { success: true } | ErrorResponse;
+
 /**
  * 클라이언트 → 서버 (서버가 socket.on 으로 받는 이벤트들)
  * 키 = 이벤트 이름, 값 = 핸들러 시그니처
@@ -115,5 +121,9 @@ export interface ClientToServerEvents {
   [SignalingEvent.Consume]: (
     req: ConsumeRequest,
     ack: (res: ConsumeResponse) => void,
+  ) => void;
+  [SignalingEvent.ConsumeResume]: (
+    req: ConsumeResumeRequest,
+    ack: (res: ConsumeResumeResponse) => void,
   ) => void;
 }

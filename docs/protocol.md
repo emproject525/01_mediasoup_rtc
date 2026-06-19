@@ -45,16 +45,16 @@ sequenceDiagram
   Note over R: 통로 껍데기 생성 (아직 미연결)
 
   C->>R: 송신 Transport에 트랙 전달
-  R-->>C: [연결 이벤트] 연결 파라미터 = 클라 것 — 최초 송신 1회만
-  C->>S: Transport 연결 요청 (Transport 식별자, 연결 파라미터)
+  R-->>C: [transport.on('connect') 연결 이벤트] 연결 파라미터 = 클라 것 — 최초 송신 1회만
+  C->>S: Transport 연결 완료 전송 (Transport 식별자, 연결 파라미터)
   Note over S: 서버측 Transport 연결 → 통로 완성
   S-->>C: 응답 (성공)
-  C-->>R: 연결 완료 통지
-  R-->>C: [송신 이벤트] 종류, RTP 파라미터
+  C-->>R: 연결 완료 통지 (transport.on('connect')의 callback 실행)
+  R-->>C: [transport.on('produce') 송신 이벤트] 종류, RTP 파라미터
   C->>S: 송신 등록 요청 (종류, RTP 파라미터)
   Note over S: 서버측 Producer 생성
   S-->>C: 응답 (producer 식별자)
-  C-->>R: 송신 등록 완료 통지
+  C-->>R: 송신 등록 완료 통지 (transport.on('produce')의 callback 실행)
   Note over R: Producer 핸들 확보
   S->>C: (다른 peer들에게) 새 producer 알림
 

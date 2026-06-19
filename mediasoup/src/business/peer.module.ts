@@ -1,3 +1,4 @@
+import { SignalingError, SignalingErrorCode } from "@rtc/packages";
 import {
   Consumer,
   DtlsParameters,
@@ -85,18 +86,33 @@ export class Peer {
   }
 
   async consume(producerId: string, rtpCapabilities: RtpCapabilities) {
+    const canConsume = this.router.canConsume({ producerId, rtpCapabilities });
+    if (!canConsume) throw new SignalingError("ConsumeFailedNotSupported");
+
     const co = await this._recvTransport?.consume({
       producerId,
       rtpCapabilities,
+      // ================================
+      // 처음부터 RTP를 흘릴지, 멈춰둘지 선택 가능
+      // 멈춰두는 이유: 첫 프레임 유실 방지의 목적 (클라가 화면 붙일 때까지 잠깐 멈춤)
+      // 클라에서 srcObject로 연결 완료 후 resume 실행
+      // ================================
+      paused: true,
     });
 
     if (co) {
       co.on("transportclose", () => {
         this._consumers.delete(co.id);
+      }).on("producerclose", () => {
+        this._consumers.delete(co.id);
       });
       this._consumers.set(co.id, co);
       return co;
     }
+  }
+
+  async resumeConsumer(consumerId: string) {
+    await this._consumers.get(consumerId)?.resume();
   }
 
   getProducers() {

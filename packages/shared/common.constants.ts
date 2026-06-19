@@ -10,6 +10,8 @@ export const SignalingEvent = {
   ProduceClose: "produce:close",
   /** consume 목적의 mediasoupWebRtc 정보 요청 */
   Consume: "consume",
+  /** 첫 프레임 유실 방지의 목적으로 consume srcObject 연결 완료 후 호출 */
+  ConsumeResume: "consume:resume",
   /** peer 입장 */
   EventPeerJoined: "event:peer:joined",
   EventProducerNew: "event:producer:new",
@@ -22,13 +24,16 @@ export type SignalingEventKey = keyof typeof SignalingEvent;
 export type SignalingEventValue = (typeof SignalingEvent)[SignalingEventKey];
 
 export const SignalingErrorCode = {
-  NoPeer: 10000,
-  RoomJoinFailed: 10001,
-  TransportCreateFailed: 10002,
-  TransportConnectFailed: 10003,
-  ProduceFailed: 10004,
-  ProduceCloseFailed: 10005,
-  ConsumeFailed: 10006,
+  Unknown: 10000,
+  NoPeer: 10001,
+  RoomJoinFailed: 10002,
+  TransportCreateFailed: 10003,
+  TransportConnectFailed: 10004,
+  ProduceFailed: 10005,
+  ProduceCloseFailed: 10006,
+  ConsumeFailed: 10007,
+  ConsumeFailedNotSupported: 10008,
+  ConsumeResumeFailed: 10009,
 } as const;
 
 export type SignalingErrorCodeKey = keyof typeof SignalingErrorCode;

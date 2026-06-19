@@ -2,7 +2,10 @@ import { createServer } from "node:http";
 import { Server } from "socket.io";
 import { SignalingServerOptions } from "./server.types";
 import {
+  ErrorResponse,
+  SignalingError,
   SignalingErrorCode,
+  SignalingErrorCodeValue,
   SignalingEvent,
   type ClientToServerEvents,
   type ServerToClientEvents,
@@ -28,6 +31,21 @@ export function createSignalingServer({
     },
   );
 
+  const getErrorResponse = (
+    error: unknown,
+    code?: SignalingErrorCodeValue,
+  ): ErrorResponse => {
+    if (error instanceof SignalingError) {
+      return { code: error.code, message: null };
+    } else if (error instanceof Error) {
+      return {
+        code: code ?? SignalingErrorCode.Unknown,
+        message: error.message ?? null,
+      };
+    }
+    return { code: SignalingErrorCode.Unknown, message: null };
+  };
+
   io.on("connection", (socket) => {
     console.info("[signaling] connected", socket.id);
 
@@ -52,10 +70,7 @@ export function createSignalingServer({
             peerId: peer.id,
           });
         } catch (error) {
-          ack({
-            code: SignalingErrorCode.RoomJoinFailed,
-            message: error instanceof Error ? error.message : null,
-          });
+          ack(getErrorResponse(error, SignalingErrorCode.RoomJoinFailed));
         }
       })
       .on(
@@ -65,7 +80,7 @@ export function createSignalingServer({
             const room = await roomManager.getOrCreateRoom(roomId);
             const peer = room.getOrCreatePeer(socket.id);
 
-            if (!peer) throw new Error("no peer");
+            if (!peer) throw new SignalingError("NoPeer");
 
             const transport =
               direction === "recv"
@@ -79,10 +94,9 @@ export function createSignalingServer({
               dtlsParameters: transport.dtlsParameters,
             });
           } catch (error) {
-            ack({
-              code: SignalingErrorCode.TransportCreateFailed,
-              message: error instanceof Error ? error.message : null,
-            });
+            ack(
+              getErrorResponse(error, SignalingErrorCode.TransportCreateFailed),
+            );
           }
         },
       )
@@ -93,7 +107,7 @@ export function createSignalingServer({
             const room = await roomManager.getOrCreateRoom(roomId);
             const peer = room.getOrCreatePeer(socket.id);
 
-            if (!peer) throw new Error("no peer");
+            if (!peer) throw new SignalingError("NoPeer");
 
             const success = await peer.connectTransport(
               transportId,
@@ -102,10 +116,12 @@ export function createSignalingServer({
 
             ack({ success });
           } catch (error) {
-            ack({
-              code: SignalingErrorCode.TransportConnectFailed,
-              message: error instanceof Error ? error.message : null,
-            });
+            ack(
+              getErrorResponse(
+                error,
+                SignalingErrorCode.TransportConnectFailed,
+              ),
+            );
           }
         },
       )
@@ -116,14 +132,14 @@ export function createSignalingServer({
             const room = await roomManager.getOrCreateRoom(roomId);
             const peer = room.getOrCreatePeer(socket.id);
 
-            if (!peer) throw new Error("no peer");
+            if (!peer) throw new SignalingError("NoPeer");
 
             const producer = await peer.produce(
               kind,
               rtpParameters as RtpParameters,
             );
 
-            if (!producer) throw new Error("fail to produce");
+            if (!producer) throw new SignalingError("ProduceFailed");
 
             ack({ producerId: producer.id });
 
@@ -133,10 +149,7 @@ export function createSignalingServer({
               kind,
             });
           } catch (error) {
-            ack({
-              code: SignalingErrorCode.ProduceFailed,
-              message: error instanceof Error ? error.message : null,
-            });
+            ack(getErrorResponse(error, SignalingErrorCode.ProduceFailed));
           }
         },
       )
@@ -145,15 +158,12 @@ export function createSignalingServer({
           const room = await roomManager.getOrCreateRoom(roomId);
           const peer = room.getOrCreatePeer(socket.id);
 
-          if (!peer) throw new Error("no peer");
+          if (!peer) throw new SignalingError("NoPeer");
 
           const success = peer.closeProduce(producerId);
           ack({ success });
         } catch (error) {
-          ack({
-            code: SignalingErrorCode.ProduceCloseFailed,
-            message: error instanceof Error ? error.message : null,
-          });
+          ack(getErrorResponse(error, SignalingErrorCode.ProduceCloseFailed));
         }
       })
       .on(
@@ -163,17 +173,17 @@ export function createSignalingServer({
             const room = await roomManager.getOrCreateRoom(roomId);
             const peer = room.getOrCreatePeer(socket.id);
 
-            if (!peer) throw new Error("no peer");
+            if (!peer) throw new SignalingError("NoPeer");
 
             const consumer = await peer.consume(
               producerId,
               rtpCapabilities as RtpCapabilities,
             );
 
-            if (!consumer) throw new Error("fail to consume");
+            if (!consumer) throw new SignalingError("ConsumeFailed");
 
             consumer.on("producerclose", () => {
-              socket.emit("event:producer:closed", {
+              socket.emit(SignalingEvent.EventProducerClosed, {
                 producerId,
               });
             });
@@ -185,13 +195,24 @@ export function createSignalingServer({
               rtpParameters: consumer.rtpParameters,
             });
           } catch (error) {
-            ack({
-              code: SignalingErrorCode.ConsumeFailed,
-              message: error instanceof Error ? error.message : null,
-            });
+            ack(getErrorResponse(error, SignalingErrorCode.ConsumeFailed));
           }
         },
-      );
+      )
+      .on(SignalingEvent.ConsumeResume, async ({ roomId, consumerId }, ack) => {
+        try {
+          const room = await roomManager.getOrCreateRoom(roomId);
+          const peer = room.getOrCreatePeer(socket.id);
+
+          if (!peer) throw new SignalingError("NoPeer");
+
+          await peer.resumeConsumer(consumerId);
+
+          ack({ success: true });
+        } catch (error) {
+          ack(getErrorResponse(error, SignalingErrorCode.ConsumeResumeFailed));
+        }
+      });
 
     // disconnect 시점엔 socket.rooms 가 이미 비므로, disconnecting 에서 처리
     socket.on("disconnecting", () => {

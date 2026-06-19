@@ -23,6 +23,7 @@ export class Room {
   }
 
   removePeer(peerId: string) {
+    this.peers.get(peerId)?.close();
     this.peers.delete(peerId);
   }
 
