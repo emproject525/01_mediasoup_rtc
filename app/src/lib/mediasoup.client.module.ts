@@ -2,6 +2,7 @@ import { Device, type types } from "mediasoup-client";
 import { SignalingEvent, type ErrorResponse } from "@rtc/packages";
 import type { AppSocket } from "./socket.module";
 import EventEmitter from "eventemitter3";
+import { MediaKind } from "mediasoup-client/types";
 
 export type RemoteStream = {
   consumerId: string;
@@ -69,8 +70,20 @@ export class MediaSoupClient {
 
   /** 카메라/마이크 트랙 송출 */
   async produce(track: MediaStreamTrack) {
+    const kind = track.kind as MediaKind;
+    if (!this.device.canProduce(kind)) return;
+
     const transport = await this.getSendTransport();
-    const producer = await transport.produce({ track });
+    const producer = await transport.produce({
+      track,
+      ...(kind === "video" && {
+        encodings: [
+          { rid: "low", maxBitrate: 150_000, scaleResolutionDownBy: 4 },
+          { rid: "medium", maxBitrate: 500_000, scaleResolutionDownBy: 2 },
+          { rid: "high", maxBitrate: 1_500_000 },
+        ],
+      }),
+    });
     this.producers.set(producer.id, producer);
     return producer;
   }

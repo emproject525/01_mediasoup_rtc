@@ -29,7 +29,10 @@ export class Peer {
       preferUdp: true,
     });
 
-    console.log("[send] iceCandidates", this._sendTransport.iceCandidates);
+    console.log(
+      "[send] iceCandidates",
+      JSON.stringify(this._sendTransport.iceCandidates)
+    );
 
     return this._sendTransport;
   }
@@ -44,7 +47,10 @@ export class Peer {
       preferUdp: true,
     });
 
-    console.log("[recv] iceCandidates", this._recvTransport.iceCandidates);
+    console.log(
+      "[recv] iceCandidates",
+      JSON.stringify(this._recvTransport.iceCandidates)
+    );
 
     return this._recvTransport;
   }

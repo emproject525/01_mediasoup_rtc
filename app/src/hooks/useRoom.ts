@@ -80,8 +80,8 @@ export function useRoom() {
         localStreamRef.current = stream;
         setLocalStream(stream);
         for (const track of stream.getTracks()) {
-          await client.produce(track);
-          log(`Producing ${track.kind} ...`);
+          const producer = await client.produce(track);
+          if (producer) log(`Producing ${track.kind} ...`);
         }
 
         // 기존 producer 수신

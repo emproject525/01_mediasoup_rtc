@@ -10,7 +10,7 @@ mediasoup은 OS별 네이티브 worker를 사용합니다. Windows에서 `medias
 
 ```bash
 MEDIASOUP_FORCE_WORKER_PREBUILT_DOWNLOAD=true \
-pnpm --dir node_modules/.pnpm/mediasoup@3.20.6/node_modules/mediasoup run postinstall
+pnpm --dir node_modules/.pnpm/mediasoup@3.20.9/node_modules/mediasoup run postinstall
 ```
 
 이 명령은 Windows용 `mediasoup-worker.exe`를 다운로드합니다.

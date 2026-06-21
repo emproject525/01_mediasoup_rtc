@@ -5,3 +5,5 @@ packages:
 allowBuilds:
   esbuild: true
   mediasoup: true
+minimumReleaseAgeExclude:
+  - mediasoup@3.20.9

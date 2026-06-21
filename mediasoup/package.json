@@ -11,7 +11,7 @@
   "dependencies": {
     "@rtc/packages": "workspace:*",
     "dotenv": "^16.4.7",
-    "mediasoup": "^3.0.0",
+    "mediasoup": "^3.20.9",
     "socket.io": "^4.8.1"
   },
   "devDependencies": {
