@@ -12,59 +12,75 @@ import {
 import { config } from "../config/env";
 
 export class Peer {
-  private _sendTransport?: WebRtcTransport;
-  private _recvTransport?: WebRtcTransport;
+  private _sendTransport?: Promise<WebRtcTransport>;
+  private _recvTransport?: Promise<WebRtcTransport>;
   private _producers: Map<string, Producer> = new Map();
   private _consumers: Map<string, Consumer> = new Map();
 
-  constructor(readonly id: string, readonly router: Router) {}
+  constructor(
+    readonly id: string,
+    readonly router: Router,
+  ) {}
 
-  async getOrCreateSendTransport() {
+  getOrCreateSendTransport() {
     if (this._sendTransport) return this._sendTransport;
 
-    this._sendTransport = await this.router.createWebRtcTransport({
-      listenIps: [{ ip: config.listenIp, announcedIp: config.announcedIp }],
-      enableUdp: true,
-      enableTcp: true,
-      preferUdp: true,
+    const creating = (async () => {
+      const transport = await this.router.createWebRtcTransport({
+        listenIps: [{ ip: config.listenIp, announcedIp: config.announcedIp }],
+        enableUdp: true,
+        enableTcp: true,
+        preferUdp: true,
+      });
+      console.log(
+        "[send] iceCandidates",
+        JSON.stringify(transport.iceCandidates),
+      );
+      return transport;
+    })();
+
+    creating.catch(() => {
+      this._sendTransport = undefined;
     });
 
-    console.log(
-      "[send] iceCandidates",
-      JSON.stringify(this._sendTransport.iceCandidates)
-    );
-
-    return this._sendTransport;
+    this._sendTransport = creating;
+    return creating;
   }
 
-  async getOrCreateRecvTransport() {
+  getOrCreateRecvTransport() {
     if (this._recvTransport) return this._recvTransport;
 
-    this._recvTransport = await this.router.createWebRtcTransport({
-      listenIps: [{ ip: config.listenIp, announcedIp: config.announcedIp }],
-      enableUdp: true,
-      enableTcp: true,
-      preferUdp: true,
+    const creating = (async () => {
+      const transport = await this.router.createWebRtcTransport({
+        listenIps: [{ ip: config.listenIp, announcedIp: config.announcedIp }],
+        enableUdp: true,
+        enableTcp: true,
+        preferUdp: true,
+      });
+      console.log(
+        "[recv] iceCandidates",
+        JSON.stringify(transport.iceCandidates),
+      );
+      return transport;
+    })();
+
+    creating.catch(() => {
+      this._recvTransport = undefined;
     });
 
-    console.log(
-      "[recv] iceCandidates",
-      JSON.stringify(this._recvTransport.iceCandidates)
-    );
-
-    return this._recvTransport;
+    this._recvTransport = creating;
+    return creating;
   }
 
   async connectTransport(transportId: string, dtlsParameters: DtlsParameters) {
-    const target =
-      this._recvTransport?.id === transportId
-        ? this._recvTransport
-        : this._sendTransport?.id === transportId
-        ? this._sendTransport
-        : null;
+    const recv = await this._recvTransport;
+    const send = await this._sendTransport;
 
-    if (target) {
-      await target.connect({ dtlsParameters });
+    const transport =
+      recv?.id === transportId ? recv : send?.id === transportId ? send : null;
+
+    if (transport) {
+      await transport.connect({ dtlsParameters });
       return true;
     }
 
@@ -72,7 +88,8 @@ export class Peer {
   }
 
   async produce(kind: MediaKind, rtpParameters: RtpParameters) {
-    const pr = await this._sendTransport?.produce({
+    const transport = await this._sendTransport;
+    const pr = await transport?.produce({
       kind,
       rtpParameters,
     });
@@ -97,7 +114,8 @@ export class Peer {
     const canConsume = this.router.canConsume({ producerId, rtpCapabilities });
     if (!canConsume) throw new SignalingError("ConsumeFailedNotSupported");
 
-    const co = await this._recvTransport?.consume({
+    const transport = await this._recvTransport;
+    const co = await transport?.consume({
       producerId,
       rtpCapabilities,
       // ================================
@@ -127,15 +145,15 @@ export class Peer {
     return this._producers.values();
   }
 
-  close() {
+  async close() {
     this._producers.forEach((pr) => pr.close());
     this._producers.clear();
 
     this._consumers.forEach((co) => co.close());
     this._consumers.clear();
 
-    this._sendTransport?.close();
-    this._recvTransport?.close();
+    (await this._sendTransport)?.close();
+    (await this._recvTransport)?.close();
     delete this._sendTransport;
     delete this._recvTransport;
   }

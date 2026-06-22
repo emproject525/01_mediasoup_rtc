@@ -5,29 +5,34 @@ import type { SingleWorkerType } from "./sfu.types";
 
 class SingleWorker implements SingleWorkerType {
   constructor(private readonly worker: Worker) {}
-  private _routers: Map<string, Router> = new Map();
+  private _routers: Map<string, Promise<Router>> = new Map();
 
-  async getOrCreateRouter(routerId: string) {
+  getOrCreateRouter(routerId: string) {
     const existing = this._routers.get(routerId);
     if (existing) return existing;
-    const routerOne = await this.worker.createRouter({
-      mediaCodecs: MediaCodecs,
+
+    const creating = this.worker.createRouter({ mediaCodecs: MediaCodecs });
+    this._routers.set(routerId, creating);
+
+    creating.catch(() => {
+      if (this._routers.get(routerId) === creating)
+        this._routers.delete(routerId);
     });
-    this._routers.set(routerId, routerOne);
-    return routerOne;
+
+    return creating;
   }
 
-  closeRouter(routerId: string): void {
-    this._routers.get(routerId)?.close();
+  async closeRouter(routerId: string) {
+    const created = this._routers.get(routerId);
     this._routers.delete(routerId);
+    (await created)?.close();
   }
 
-  close() {
-    this._routers.forEach((routerOne) => {
-      routerOne.close();
-    });
+  async close() {
+    const created = [...this._routers.values()];
     this._routers.clear();
-    this.worker.close();
+    await Promise.allSettled(created); // 생성 중인 방들이 성공/실패로 정착할 때까지 대기
+    this.worker.close(); // 모든 router를 cascade close
   }
 }
 

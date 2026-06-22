@@ -2,7 +2,7 @@ import { Room } from "./room.module";
 import type { SingleWorkerType } from "../sfu";
 
 export class RoomManager {
-  private readonly rooms = new Map<string, Room>();
+  private readonly rooms = new Map<string, Promise<Room>>();
 
   constructor(private readonly mediasoupWorker: SingleWorkerType) {}
 
@@ -10,34 +10,43 @@ export class RoomManager {
     const existing = this.rooms.get(roomId);
     if (existing) return existing;
 
-    const router = await this.mediasoupWorker.getOrCreateRouter(roomId);
-    const room = new Room(roomId, router);
-    this.rooms.set(roomId, room);
+    const creating = (async () => {
+      const router = await this.mediasoupWorker.getOrCreateRouter(roomId);
+      return new Room(roomId, router);
+    })();
 
-    return room;
+    this.rooms.set(roomId, creating);
+    creating.catch(() => {
+      if (this.rooms.get(roomId) === creating) this.rooms.delete(roomId);
+    });
+
+    return creating;
   }
 
-  removeRoom(roomId: string) {
-    const target = this.rooms.get(roomId);
-    if (!target) return;
+  async removeRoom(roomId: string) {
+    const created = this.rooms.get(roomId);
+    if (!created) return;
 
-    this.mediasoupWorker.closeRouter(roomId);
-    this.rooms.delete(target.id);
+    this.rooms.delete(roomId);
+    await this.mediasoupWorker.closeRouter(roomId);
   }
 
   /**
    * room에서 peer 제거
    * @param roomId
    * @param peerId
-   * @returns room에 남은 peer 수
+   * @returns
    */
-  removePeer(roomId: string, peerId: string) {
-    const target = this.rooms.get(roomId);
-    if (!target) return;
+  async removePeer(roomId: string, peerId: string) {
+    const created = this.rooms.get(roomId);
+    if (!created) return;
 
-    target.removePeer(peerId);
-    if (target.peers.size === 0) {
-      this.removeRoom(target.id);
-    }
+    const room = await created;
+    room.removePeer(peerId);
+
+    if (room.peers.size > 0) return;
+    if (this.rooms.get(roomId) !== created) return;
+
+    await this.removeRoom(roomId);
   }
 }
