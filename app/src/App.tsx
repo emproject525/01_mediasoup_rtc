@@ -15,12 +15,18 @@ export default function App() {
     leave,
     chats,
     sendChat,
+    audioPaused,
+    videoPaused,
+    toggleAudio,
+    toggleVideo,
   } = useRoom();
   const [roomId, setRoomId] = useState("test-room");
 
   const joined = status === "joined";
   const busy = status === "connecting";
   const localVideoTrack = localStream?.getVideoTracks()[0];
+  const hasAudio = !!localStream?.getAudioTracks().length;
+  const hasVideo = !!localStream?.getVideoTracks().length;
 
   const remoteVideos = remotes.filter((r) => r.kind === "video");
   const remoteAudios = remotes.filter((r) => r.kind === "audio");
@@ -47,6 +53,27 @@ export default function App() {
           {peerId && <span className="peer">me: {peerId}</span>}
         </div>
       </header>
+
+      {joined && (hasAudio || hasVideo) && (
+        <div className="media-controls">
+          {hasAudio && (
+            <button
+              onClick={toggleAudio}
+              className={audioPaused ? "ctl off" : "ctl"}
+            >
+              {audioPaused ? "🔇 음소거 해제" : "🎙️ 음소거"}
+            </button>
+          )}
+          {hasVideo && (
+            <button
+              onClick={toggleVideo}
+              className={videoPaused ? "ctl off" : "ctl"}
+            >
+              {videoPaused ? "📷 영상 켜기" : "🚫 영상 끄기"}
+            </button>
+          )}
+        </div>
+      )}
 
       <section className="grid">
         {localVideoTrack && (

@@ -232,6 +232,18 @@ export class MediaSoupClient {
     return () => this.emitter.off("connection_state_changed", handler);
   };
 
+  async replaceTrack(producerId: string, track: MediaStreamTrack) {
+    const target = this.producers.get(producerId);
+    if (!target) return;
+    await target.replaceTrack({ track });
+  }
+
+  async pause(producerId: string, pause: boolean) {
+    const target = this.producers.get(producerId);
+    if (!target) return;
+    pause ? target.pause() : target.resume();
+  }
+
   private async createTransport(
     direction: TransportDirection,
     options: TransportResponse,

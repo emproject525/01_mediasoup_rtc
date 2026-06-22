@@ -119,6 +119,27 @@ body {
   border-radius: 6px;
 }
 
+.media-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.media-controls .ctl {
+  background: #1b1b22;
+  border: 1px solid #2c2c36;
+  border-radius: 8px;
+  color: inherit;
+  padding: 7px 14px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.media-controls .ctl.off {
+  background: #5a1d24;
+  border-color: #7a2630;
+  color: #ffd7db;
+}
+
 .bottom {
   display: flex;
   gap: 12px;

@@ -22,10 +22,14 @@ export function useRoom() {
   const [remotes, setRemotes] = useState<RemoteStream[]>([]);
   const [logs, setLogs] = useState<string[]>([]);
   const [chats, setChats] = useState<ChatMessage[]>([]);
+  const [audioPaused, setAudioPaused] = useState(false);
+  const [videoPaused, setVideoPaused] = useState(false);
 
   const socketRef = useRef<AppSocket>(null);
   const clientRef = useRef<MediaSoupClient>(null);
   const localStreamRef = useRef<MediaStream>(null);
+  const audioProducerIdRef = useRef<string | null>(null);
+  const videoProducerIdRef = useRef<string | null>(null);
 
   const log = useCallback((msg: string) => {
     setLogs((prev) => [...prev, msg]);
@@ -113,7 +117,10 @@ export function useRoom() {
         setLocalStream(stream);
         for (const track of stream.getTracks()) {
           const producer = await client.produce(track);
-          if (producer) log(`Producing ${track.kind} ...`);
+          if (!producer) continue;
+          log(`Producing ${track.kind} ...`);
+          if (track.kind === "audio") audioProducerIdRef.current = producer.id;
+          if (track.kind === "video") videoProducerIdRef.current = producer.id;
         }
 
         // 기존 producer 수신
@@ -163,6 +170,28 @@ export function useRoom() {
     [peerId, pushChat],
   );
 
+  /** 음성 음소거 토글 (audio producer pause/resume) */
+  const toggleAudio = useCallback(() => {
+    const id = audioProducerIdRef.current;
+    if (!id) return;
+    setAudioPaused((prev) => {
+      const next = !prev;
+      clientRef.current?.pause(id, next);
+      return next;
+    });
+  }, []);
+
+  /** 영상 끄기 토글 (video producer pause/resume) */
+  const toggleVideo = useCallback(() => {
+    const id = videoProducerIdRef.current;
+    if (!id) return;
+    setVideoPaused((prev) => {
+      const next = !prev;
+      clientRef.current?.pause(id, next);
+      return next;
+    });
+  }, []);
+
   const leave = useCallback(() => {
     clientRef.current?.close();
     socketRef.current?.disconnect();
@@ -170,10 +199,14 @@ export function useRoom() {
     clientRef.current = null;
     socketRef.current = null;
     localStreamRef.current = null;
+    audioProducerIdRef.current = null;
+    videoProducerIdRef.current = null;
     setRemotes([]);
     setChats([]);
     setLocalStream(undefined);
     setPeerId(undefined);
+    setAudioPaused(false);
+    setVideoPaused(false);
     setStatus("idle");
     log("left room");
   }, [log]);
@@ -188,5 +221,9 @@ export function useRoom() {
     leave,
     chats,
     sendChat,
+    audioPaused,
+    videoPaused,
+    toggleAudio,
+    toggleVideo,
   };
 }
