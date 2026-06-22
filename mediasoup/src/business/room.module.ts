@@ -37,4 +37,16 @@ export class Room {
     }
     return list;
   }
+
+  dataProducers(exceptPeerId: string) {
+    const list: { dataProducerId: string; peerId: string }[] = [];
+    for (const peer of this.peers.values()) {
+      if (peer.id === exceptPeerId) continue;
+      const dataProducer = peer.getDataProducer();
+      if (dataProducer) {
+        list.push({ dataProducerId: dataProducer.id, peerId: peer.id });
+      }
+    }
+    return list;
+  }
 }

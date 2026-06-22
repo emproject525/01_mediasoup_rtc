@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import { SignalingEvent } from "@rtc/packages";
+import { DataPayload, MessageId, SignalingEvent } from "@rtc/packages";
 import { createSocket, type AppSocket } from "../lib/socket.module";
 import {
   MediaSoupClient,
@@ -9,12 +9,19 @@ import { SIGNALING_URL } from "../lib/config";
 
 export type RoomStatus = "idle" | "connecting" | "joined" | "error";
 
+export type ChatMessage = {
+  from: string;
+  self: boolean;
+  payload: DataPayload;
+};
+
 export function useRoom() {
   const [status, setStatus] = useState<RoomStatus>("idle");
   const [peerId, setPeerId] = useState<string>();
   const [localStream, setLocalStream] = useState<MediaStream>();
   const [remotes, setRemotes] = useState<RemoteStream[]>([]);
   const [logs, setLogs] = useState<string[]>([]);
+  const [chats, setChats] = useState<ChatMessage[]>([]);
 
   const socketRef = useRef<AppSocket>(null);
   const clientRef = useRef<MediaSoupClient>(null);
@@ -22,6 +29,10 @@ export function useRoom() {
 
   const log = useCallback((msg: string) => {
     setLogs((prev) => [...prev, msg]);
+  }, []);
+
+  const pushChat = useCallback((msg: ChatMessage) => {
+    setChats((prev) => [...prev, msg]);
   }, []);
 
   const getUserStream = useCallback(async () => {
@@ -48,7 +59,7 @@ export function useRoom() {
 
         const client = new MediaSoupClient(socket, roomId);
         client.onConnectionStateChanged(({ direction, state }) =>
-          log(`[${direction.toUpperCase()}] Transport State is ${state}`)
+          log(`[${direction.toUpperCase()}] Transport State is ${state}`),
         );
         client.onLog((message) => log(message));
         clientRef.current = client;
@@ -57,21 +68,42 @@ export function useRoom() {
         socket.on(SignalingEvent.EventPeerJoined, ({ peerId }) => {
           log(`Peer Joined: ${peerId}`);
         });
-        socket.on(
-          SignalingEvent.EventProducerNew,
-          async ({ producerId, peerId, kind }) => {
-            log(`NEW Producer: ${kind} from ${peerId}`);
-            const remote = await client.consume(producerId, peerId);
-            if (remote) setRemotes((prev) => [...prev, remote]);
-          }
-        );
-        socket.on(SignalingEvent.EventProducerClosed, ({ producerId }) => {
-          log(`Producer Closed: ${producerId}`);
-          client.removeByProducerId(producerId);
-          setRemotes((prev) => prev.filter((r) => r.producerId !== producerId));
-        });
+        socket
+          .on(
+            SignalingEvent.EventProducerNew,
+            async ({ producerId, peerId, kind }) => {
+              log(`NEW Producer: ${kind} from ${peerId}`);
+              const remote = await client.consume(producerId, peerId);
+              if (remote) setRemotes((prev) => [...prev, remote]);
+            },
+          )
+          .on(
+            SignalingEvent.EventDataProducerNew,
+            async ({ peerId, dataProducerId }) => {
+              log(`NEW Data Producer: from ${peerId}`);
+              const consumeData = await client.consumeData(dataProducerId);
+              consumeData?.on("message", (payload) => {
+                try {
+                  pushChat({
+                    from: peerId,
+                    self: false,
+                    payload: JSON.parse(payload) as DataPayload,
+                  });
+                } catch {
+                  //
+                }
+              });
+            },
+          )
+          .on(SignalingEvent.EventProducerClosed, ({ producerId }) => {
+            log(`Producer Closed: ${producerId}`);
+            client.removeByProducerId(producerId);
+            setRemotes((prev) =>
+              prev.filter((r) => r.producerId !== producerId),
+            );
+          });
 
-        const { peerId, producers } = await client.join();
+        const { peerId, producers, dataProducers } = await client.join();
         setPeerId(peerId);
         log(`Joined Room "${roomId}" as ${peerId}`);
 
@@ -90,13 +122,45 @@ export function useRoom() {
           if (remote) setRemotes((prev) => [...prev, remote]);
         }
 
+        // 기존 data producer 수신
+        for (const p of dataProducers) {
+          const consumeData = await client.consumeData(p.dataProducerId);
+          consumeData?.on("message", (payload) => {
+            try {
+              pushChat({
+                from: p.peerId,
+                self: false,
+                payload: JSON.parse(payload) as DataPayload,
+              });
+            } catch {
+              //
+            }
+          });
+        }
+
         setStatus("joined");
       } catch (error) {
         setStatus("error");
         log(`Error: ${error instanceof Error ? error.message : String(error)}`);
       }
     },
-    [status, log]
+    [status, log, pushChat],
+  );
+
+  const sendChat = useCallback(
+    (text: string) => {
+      const trimmed = text.trim();
+      if (!trimmed) return;
+
+      const payload: DataPayload = {
+        messageId: MessageId.Chat,
+        message: trimmed,
+      };
+      clientRef.current?.sendChat(payload);
+      // 본인 메시지는 SFU가 되돌려주지 않으므로 로컬에 직접 추가
+      pushChat({ from: peerId ?? "me", self: true, payload });
+    },
+    [peerId, pushChat],
   );
 
   const leave = useCallback(() => {
@@ -107,11 +171,22 @@ export function useRoom() {
     socketRef.current = null;
     localStreamRef.current = null;
     setRemotes([]);
+    setChats([]);
     setLocalStream(undefined);
     setPeerId(undefined);
     setStatus("idle");
     log("left room");
   }, [log]);
 
-  return { status, peerId, localStream, remotes, logs, join, leave };
+  return {
+    status,
+    peerId,
+    localStream,
+    remotes,
+    logs,
+    join,
+    leave,
+    chats,
+    sendChat,
+  };
 }

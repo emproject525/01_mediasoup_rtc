@@ -4,10 +4,13 @@ import {
   DtlsParameters,
   MediaKind,
   Producer,
+  DataProducer,
+  DataConsumer,
   Router,
   RtpCapabilities,
   RtpParameters,
   WebRtcTransport,
+  SctpStreamParameters,
 } from "mediasoup/types";
 import { config } from "../config/env";
 
@@ -16,6 +19,8 @@ export class Peer {
   private _recvTransport?: Promise<WebRtcTransport>;
   private _producers: Map<string, Producer> = new Map();
   private _consumers: Map<string, Consumer> = new Map();
+  private _dataProducer?: DataProducer;
+  private _dataConsumers: Map<string, DataConsumer> = new Map();
 
   constructor(
     readonly id: string,
@@ -31,6 +36,7 @@ export class Peer {
         enableUdp: true,
         enableTcp: true,
         preferUdp: true,
+        enableSctp: true,
       });
       console.log(
         "[send] iceCandidates",
@@ -56,6 +62,7 @@ export class Peer {
         enableUdp: true,
         enableTcp: true,
         preferUdp: true,
+        enableSctp: true,
       });
       console.log(
         "[recv] iceCandidates",
@@ -95,7 +102,33 @@ export class Peer {
     });
 
     if (pr) {
+      pr.on("transportclose", () => {
+        this._producers.delete(pr.id);
+      });
       this._producers.set(pr.id, pr);
+      return pr;
+    }
+  }
+
+  async produceData(
+    sctpStreamParameters: SctpStreamParameters,
+    label?: string,
+    protocol?: string,
+  ) {
+    if (this._dataProducer) return this._dataProducer;
+
+    const transport = await this._sendTransport;
+    const pr = await transport?.produceData({
+      sctpStreamParameters,
+      label,
+      protocol,
+    });
+
+    if (pr) {
+      pr.on("transportclose", () => {
+        this._dataProducer = undefined;
+      });
+      this._dataProducer = pr;
       return pr;
     }
   }
@@ -132,8 +165,30 @@ export class Peer {
       }).on("producerclose", () => {
         this._consumers.delete(co.id);
       });
+
       this._consumers.set(co.id, co);
+
       return co;
+    }
+  }
+
+  async consumeData(dataProducerId: string) {
+    const transport = await this._recvTransport;
+    const coData = await transport?.consumeData({
+      dataProducerId,
+    });
+
+    if (coData) {
+      coData
+        .on("transportclose", () => {
+          this._dataConsumers.delete(coData.id);
+        })
+        .on("dataproducerclose", () => {
+          this._dataConsumers.delete(coData.id);
+        });
+      this._dataConsumers.set(coData.id, coData);
+
+      return coData;
     }
   }
 
@@ -145,12 +200,18 @@ export class Peer {
     return this._producers.values();
   }
 
+  getDataProducer() {
+    return this._dataProducer;
+  }
+
   async close() {
     this._producers.forEach((pr) => pr.close());
     this._producers.clear();
 
     this._consumers.forEach((co) => co.close());
     this._consumers.clear();
+    this._dataConsumers.forEach((co) => co.close());
+    this._dataConsumers.clear();
 
     (await this._sendTransport)?.close();
     (await this._recvTransport)?.close();

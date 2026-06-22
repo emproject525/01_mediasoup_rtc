@@ -17,6 +17,7 @@
 - **방 입장**만으로는 방(Router)에 소속될 뿐, 미디어 통로는 없다.
 - 송신/수신하려면 **방향별 Transport**가 필요하다 — 송신용 1개 + 수신용 1개.
 - **Transport 1개 위에 Producer/Consumer 여러 개**가 얹힌다 (video + audio여도 송신 Transport는 1개).
+  - 관리 편의상 Producer만 하는 SendTransport와 Consumer만 하는 RecvTransport를 분리하여 2개의 Transport를 사용한다.
 - 연결 정보(dtlsParameters)는 양쪽에 따로 있어 **교환**한다 — Transport 생성 응답은 _서버 것_(Client가 사용), 연결 요청은 _클라 것_(Server가 사용).
 - Transport 연결은 그 Transport에서 **최초 송신 / 최초 수신 시 단 한 번**만 일어난다.
 

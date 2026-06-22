@@ -10,14 +10,29 @@ export type EventProducerNew = {
   kind: "audio" | "video";
 };
 
+/** {@link SignalingEvent.EventDataProducerNew} event */
+export type EventDataProducerNew = {
+  dataProducerId: string;
+  peerId: string;
+};
+
 /** {@link SignalingEvent.EventProducerClosed} event */
 export type EventProducerClosed = {
   producerId: string;
+};
+
+/** {@link SignalingEvent.EventDataProducerClosed} event */
+export type EventDataProducerClosed = {
+  dataProducerId: string;
 };
 
 /** 서버 → 클라이언트 (서버가 socket.emit 으로 보내는 이벤트들) */
 export interface ServerToClientEvents {
   [SignalingEvent.EventPeerJoined]: (event: EventPeerJoined) => void;
   [SignalingEvent.EventProducerNew]: (event: EventProducerNew) => void;
+  [SignalingEvent.EventDataProducerNew]: (event: EventDataProducerNew) => void;
   [SignalingEvent.EventProducerClosed]: (event: EventProducerClosed) => void;
+  [SignalingEvent.EventDataProducerClosed]: (
+    event: EventDataProducerClosed,
+  ) => void;
 }

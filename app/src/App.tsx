@@ -2,9 +2,20 @@ import { useState } from "react";
 import { useRoom } from "./hooks/useRoom";
 import { VideoTile } from "./components/VideoTile";
 import { AudioSink } from "./components/AudioSink";
+import { Chat } from "./components/Chat";
 
 export default function App() {
-  const { status, peerId, localStream, remotes, logs, join, leave } = useRoom();
+  const {
+    status,
+    peerId,
+    localStream,
+    remotes,
+    logs,
+    join,
+    leave,
+    chats,
+    sendChat,
+  } = useRoom();
   const [roomId, setRoomId] = useState("test-room");
 
   const joined = status === "joined";
@@ -33,7 +44,7 @@ export default function App() {
             </button>
           )}
           <span className={`status status-${status}`}>{status}</span>
-          {peerId && <span className="peer">me: {peerId.slice(0, 6)}</span>}
+          {peerId && <span className="peer">me: {peerId}</span>}
         </div>
       </header>
 
@@ -44,7 +55,7 @@ export default function App() {
         {remoteVideos.map((r) => (
           <VideoTile
             key={r.consumerId}
-            label={`peer ${r.peerId.slice(0, 6)}`}
+            label={`peer ${r.peerId}`}
             track={r.track}
           />
         ))}
@@ -54,10 +65,14 @@ export default function App() {
         <AudioSink key={r.consumerId} track={r.track} />
       ))}
 
-      <aside className="logs">
-        <div className="logs-title">log</div>
-        <pre>{logs.join("\n")}</pre>
-      </aside>
+      <div className="bottom">
+        {joined && <Chat messages={chats} onSend={sendChat} />}
+
+        <aside className="logs">
+          <div className="logs-title">log</div>
+          <pre>{logs.join("\n")}</pre>
+        </aside>
+      </div>
     </div>
   );
 }

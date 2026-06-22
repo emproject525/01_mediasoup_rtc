@@ -18,6 +18,12 @@ export type RoomJoinResponse =
         producerId: string;
         kind: "audio" | "video";
       }[];
+      dataProducers: {
+        peerId: string;
+        dataProducerId: string;
+      }[];
+      sendTransport: TransportResponse;
+      recvTransport: TransportResponse;
     }
   | ErrorResponse;
 
@@ -28,14 +34,15 @@ export type TransportCreateRequest = {
 };
 
 /** {@link SignalingEvent.TransportCreate} 응답(ack) */
-export type TransportCreateResponse =
-  | {
-      transportId: string;
-      iceParameters: unknown; // WebRTC 연결에 쓰이는 데이터
-      iceCandidates: unknown[]; // WebRTC 연결에 쓰이는 데이터
-      dtlsParameters: unknown; // WebRTC 연결에 쓰이는 데이터
-    }
-  | ErrorResponse;
+export type TransportCreateResponse = TransportResponse | ErrorResponse;
+
+export type TransportResponse = {
+  transportId: string;
+  iceParameters: unknown; // WebRTC 연결에 쓰이는 데이터
+  iceCandidates: unknown[]; // WebRTC 연결에 쓰이는 데이터
+  dtlsParameters: unknown; // WebRTC 연결에 쓰이는 데이터
+  sctpParameters: unknown; // WebRTC 데이터채널 연결에 쓰이는 데이터
+};
 
 /** {@link SignalingEvent.TransportConnect} 요청 payload */
 export type TransportConnectRequest = {
@@ -61,6 +68,17 @@ export type ProduceRequest = {
 /** {@link SignalingEvent.Produce} 응답(ack) */
 export type ProduceResponse = { producerId: string } | ErrorResponse;
 
+/** {@link SignalingEvent.ProduceData} 요청 payload */
+export type ProduceDataRequest = {
+  roomId: string;
+  sctpStreamParameters: unknown; // mediasoup.SctpStreamParameters
+  label?: string; // 식별 label
+  protocol?: string; // 앱 정의값
+};
+
+/** {@link SignalingEvent.ProduceData} 응답(ack) */
+export type ProduceDataResponse = { dataProducerId: string } | ErrorResponse;
+
 /** {@link SignalingEvent.ProduceClose} 요청 payload */
 export type ProduceCloseRequest = {
   roomId: string;
@@ -84,6 +102,23 @@ export type ConsumeResponse =
       kind: "audio" | "video";
       producerId: string;
       rtpParameters: unknown;
+    }
+  | ErrorResponse;
+
+/** {@link SignalingEvent.ConsumeData} 요청 payload */
+export type ConsumeDataRequest = {
+  roomId: string;
+  dataProducerId: string;
+};
+
+/** {@link SignalingEvent.ConsumeData} 응답(ack) */
+export type ConsumeDataResponse =
+  | {
+      dataProducerId: string;
+      dataConsumerId: string;
+      sctpStreamParameters: unknown;
+      label?: string;
+      protocol?: string;
     }
   | ErrorResponse;
 
@@ -114,6 +149,10 @@ export interface ClientToServerEvents {
     req: ProduceRequest,
     ack: (res: ProduceResponse) => void,
   ) => void;
+  [SignalingEvent.ProduceData]: (
+    req: ProduceDataRequest,
+    ack: (res: ProduceDataResponse) => void,
+  ) => void;
   [SignalingEvent.ProduceClose]: (
     req: ProduceCloseRequest,
     ack: (res: ProduceCloseResponse) => void,
@@ -121,6 +160,10 @@ export interface ClientToServerEvents {
   [SignalingEvent.Consume]: (
     req: ConsumeRequest,
     ack: (res: ConsumeResponse) => void,
+  ) => void;
+  [SignalingEvent.ConsumeData]: (
+    req: ConsumeDataRequest,
+    ack: (res: ConsumeDataResponse) => void,
   ) => void;
   [SignalingEvent.ConsumeResume]: (
     req: ConsumeResumeRequest,

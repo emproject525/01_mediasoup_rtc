@@ -1,8 +1,18 @@
 import { Device, type types } from "mediasoup-client";
-import { SignalingEvent, type ErrorResponse } from "@rtc/packages";
+import {
+  SignalingEvent,
+  TransportResponse,
+  type DataPayload,
+  type ErrorResponse,
+} from "@rtc/packages";
 import type { AppSocket } from "./socket.module";
 import EventEmitter from "eventemitter3";
-import { MediaKind } from "mediasoup-client/types";
+import {
+  DataProducer,
+  MediaKind,
+  SctpStreamParameters,
+  Transport,
+} from "mediasoup-client/types";
 
 export type RemoteStream = {
   consumerId: string;
@@ -19,7 +29,7 @@ type MeidaSoupClientEmitterEvents = {
     {
       state: types.ConnectionState;
       direction: TransportDirection;
-    }
+    },
   ];
   log: [string];
 };
@@ -49,10 +59,12 @@ export class MediaSoupClient {
   private readonly emitter = new EventEmitter<MeidaSoupClientEmitterEvents>();
   readonly producers = new Map<string, types.Producer>();
   readonly consumers = new Map<string, types.Consumer>();
+  dataProducer?: DataProducer;
+  readonly dataConsumers = new Map<string, types.DataConsumer>();
 
   constructor(
     private readonly socket: AppSocket,
-    private readonly roomId: string
+    private readonly roomId: string,
   ) {}
 
   /** 방 입장 + 디바이스 로드. 기존 producer 목록을 반환한다. */
@@ -60,21 +72,70 @@ export class MediaSoupClient {
     const res = unwrap(
       await this.socket.emitWithAck(SignalingEvent.RoomJoin, {
         roomId: this.roomId,
-      })
+      }),
     );
     await this.device.load({
       routerRtpCapabilities: res.routerRtpCapabilities as types.RtpCapabilities,
     });
-    return { peerId: res.peerId, producers: res.producers };
+
+    this.sendTransport = await this.createTransport("send", res.sendTransport);
+    this.recvTransport = await this.createTransport("recv", res.recvTransport);
+
+    // 데이터채널 생성 (기본)
+    await this.produceData(this.sendTransport);
+
+    return {
+      peerId: res.peerId,
+      producers: res.producers,
+      dataProducers: res.dataProducers,
+      sendTransport: res.sendTransport,
+      recvTransport: res.recvTransport,
+    };
+  }
+
+  private async produceData(sendTransport: Transport) {
+    // produceData()가 transport의 "producedata" 이벤트를 발화 → createTransport에 등록한
+    // 핸들러가 서버로 sctpStreamParameters를 relay하고 dataProducerId를 받아온다.
+    this.dataProducer = await sendTransport.produceData({
+      ordered: true,
+      label: "chat",
+    });
+  }
+
+  /** 채팅 등 데이터 전송. 본인 메시지는 SFU가 되돌려주지 않으므로 UI에서 별도 echo 필요. */
+  sendChat(payload: DataPayload) {
+    if (this.dataProducer?.readyState !== "open") return;
+    this.dataProducer.send(JSON.stringify(payload));
+  }
+
+  async consumeData(dataProducerId: string) {
+    if (!this.recvTransport) return;
+
+    const res = unwrap(
+      await this.socket.emitWithAck(SignalingEvent.ConsumeData, {
+        roomId: this.roomId,
+        dataProducerId,
+      }),
+    );
+
+    const consumer = await this.recvTransport.consumeData({
+      id: res.dataConsumerId,
+      dataProducerId,
+      sctpStreamParameters: res.sctpStreamParameters as SctpStreamParameters,
+      label: res.label,
+      protocol: res.protocol,
+    });
+
+    this.dataConsumers.set(res.dataConsumerId, consumer);
+    return consumer;
   }
 
   /** 카메라/마이크 트랙 송출 */
   async produce(track: MediaStreamTrack) {
     const kind = track.kind as MediaKind;
-    if (!this.device.canProduce(kind)) return;
+    if (!this.device.canProduce(kind) || !this.sendTransport) return;
 
-    const transport = await this.getSendTransport();
-    const producer = await transport.produce({
+    const producer = await this.sendTransport.produce({
       track,
       ...(kind === "video" && {
         encodings: [
@@ -91,21 +152,21 @@ export class MediaSoupClient {
   /** 특정 producer 수신. 이미 받고 있으면 null. */
   async consume(
     producerId: string,
-    peerId: string
+    peerId: string,
   ): Promise<RemoteStream | null> {
-    if (this.consumedProducerIds.has(producerId)) return null;
+    if (this.consumedProducerIds.has(producerId) || !this.recvTransport)
+      return null;
     this.consumedProducerIds.add(producerId);
 
-    const transport = await this.getRecvTransport();
     const res = unwrap(
       await this.socket.emitWithAck(SignalingEvent.Consume, {
         roomId: this.roomId,
         producerId,
         rtpCapabilities: this.device.recvRtpCapabilities,
-      })
+      }),
     );
 
-    const consumer = await transport.consume({
+    const consumer = await this.recvTransport.consume({
       id: res.consumerId,
       producerId: res.producerId,
       kind: res.kind,
@@ -118,7 +179,7 @@ export class MediaSoupClient {
       await this.socket.emitWithAck(SignalingEvent.ConsumeResume, {
         roomId: this.roomId,
         consumerId: consumer.id,
-      })
+      }),
     );
 
     return {
@@ -144,15 +205,18 @@ export class MediaSoupClient {
   close() {
     this.producers.forEach((p) => p.close());
     this.consumers.forEach((c) => c.close());
+    this.dataConsumers.forEach((c) => c.close());
+    this.dataProducer?.close();
     this.producers.clear();
     this.consumers.clear();
+    this.dataConsumers.clear();
     this.sendTransport?.close();
     this.recvTransport?.close();
     this.emitter.removeAllListeners();
   }
 
   onLog = (
-    handler: EventEmitter.EventListener<MeidaSoupClientEmitterEvents, "log">
+    handler: EventEmitter.EventListener<MeidaSoupClientEmitterEvents, "log">,
   ) => {
     this.emitter.on("log", handler);
     return () => this.emitter.off("log", handler);
@@ -162,45 +226,34 @@ export class MediaSoupClient {
     handler: EventEmitter.EventListener<
       MeidaSoupClientEmitterEvents,
       "connection_state_changed"
-    >
+    >,
   ) => {
     this.emitter.on("connection_state_changed", handler);
     return () => this.emitter.off("connection_state_changed", handler);
   };
 
-  private async getSendTransport() {
-    if (!this.sendTransport) {
-      this.sendTransport = await this.createTransport("send");
-    }
-    return this.sendTransport;
-  }
-
-  private async getRecvTransport() {
-    if (!this.recvTransport) {
-      this.recvTransport = await this.createTransport("recv");
-    }
-    return this.recvTransport;
-  }
-
-  private async createTransport(direction: TransportDirection) {
-    const res = unwrap(
-      await this.socket.emitWithAck(SignalingEvent.TransportCreate, {
-        roomId: this.roomId,
-        direction,
-      })
-    );
-
-    const options = {
-      id: res.transportId,
-      iceParameters: res.iceParameters,
-      iceCandidates: res.iceCandidates,
-      dtlsParameters: res.dtlsParameters,
+  private async createTransport(
+    direction: TransportDirection,
+    options: TransportResponse,
+  ) {
+    // const res = unwrap(
+    //   await this.socket.emitWithAck(SignalingEvent.TransportCreate, {
+    //     roomId: this.roomId,
+    //     direction,
+    //   }),
+    // );
+    const parsed = {
+      id: options.transportId,
+      iceParameters: options.iceParameters,
+      iceCandidates: options.iceCandidates,
+      dtlsParameters: options.dtlsParameters,
+      sctpParameters: options.sctpParameters, // 데이터채널(SCTP)용 — 없으면 produce/consumeData 실패
     } as types.TransportOptions;
 
     const transport =
       direction === "send"
-        ? this.device.createSendTransport(options)
-        : this.device.createRecvTransport(options);
+        ? this.device.createSendTransport(parsed)
+        : this.device.createRecvTransport(parsed);
 
     this.emitter.emit("connection_state_changed", {
       state: transport.connectionState,
@@ -243,6 +296,26 @@ export class MediaSoupClient {
           })
           .catch(errback);
       });
+
+      // produceData() 호출 시 발화: sctpStreamParameters를 서버로 relay하고 dataProducerId 수신
+      transport.on(
+        "producedata",
+        ({ sctpStreamParameters, label, protocol }, callback, errback) => {
+          this.socket
+            .emitWithAck(SignalingEvent.ProduceData, {
+              roomId: this.roomId,
+              sctpStreamParameters,
+              label,
+              protocol,
+            })
+            .then((r) => {
+              if (isError(r))
+                errback(new Error(`produceData failed: code=${r.code}`));
+              else callback({ id: r.dataProducerId });
+            })
+            .catch(errback);
+        },
+      );
     }
 
     return transport;

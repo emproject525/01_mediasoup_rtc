@@ -14,6 +14,7 @@ import {
   DtlsParameters,
   RtpCapabilities,
   RtpParameters,
+  SctpStreamParameters,
 } from "mediasoup/types";
 
 export function createSignalingServer({
@@ -59,11 +60,31 @@ export function createSignalingServer({
           await socket.join(roomId);
 
           const producers = room.producers(peer.id);
+          const dataProducers = room.dataProducers(peer.id);
+
+          // peer 생성 시 바로 데이터채널 연결을 위해 transport 생성
+          const sendTransport = await peer.getOrCreateSendTransport();
+          const recvTransport = await peer.getOrCreateRecvTransport();
 
           ack({
             peerId: peer.id,
             routerRtpCapabilities: room.router.rtpCapabilities,
             producers,
+            dataProducers,
+            sendTransport: {
+              transportId: sendTransport.id,
+              iceParameters: sendTransport.iceParameters,
+              iceCandidates: sendTransport.iceCandidates,
+              dtlsParameters: sendTransport.dtlsParameters,
+              sctpParameters: sendTransport.sctpParameters,
+            },
+            recvTransport: {
+              transportId: recvTransport.id,
+              iceParameters: recvTransport.iceParameters,
+              iceCandidates: recvTransport.iceCandidates,
+              dtlsParameters: recvTransport.dtlsParameters,
+              sctpParameters: recvTransport.sctpParameters,
+            },
           });
 
           socket.to(roomId).emit(SignalingEvent.EventPeerJoined, {
@@ -92,6 +113,7 @@ export function createSignalingServer({
               iceParameters: transport.iceParameters,
               iceCandidates: transport.iceCandidates,
               dtlsParameters: transport.dtlsParameters,
+              sctpParameters: transport.sctpParameters,
             });
           } catch (error) {
             ack(
@@ -153,6 +175,34 @@ export function createSignalingServer({
           }
         },
       )
+      .on(
+        SignalingEvent.ProduceData,
+        async ({ roomId, label, protocol, sctpStreamParameters }, ack) => {
+          try {
+            const room = await roomManager.getOrCreateRoom(roomId);
+            const peer = room.getOrCreatePeer(socket.id);
+
+            if (!peer) throw new SignalingError("NoPeer");
+
+            const producer = await peer.produceData(
+              sctpStreamParameters as SctpStreamParameters,
+              label,
+              protocol,
+            );
+
+            if (!producer) throw new SignalingError("ProduceDataFailed");
+
+            ack({ dataProducerId: producer.id });
+
+            socket.to(roomId).emit(SignalingEvent.EventDataProducerNew, {
+              dataProducerId: producer.id,
+              peerId: peer.id,
+            });
+          } catch (error) {
+            ack(getErrorResponse(error, SignalingErrorCode.ProduceDataFailed));
+          }
+        },
+      )
       .on(SignalingEvent.ProduceClose, async ({ roomId, producerId }, ack) => {
         try {
           const room = await roomManager.getOrCreateRoom(roomId);
@@ -196,6 +246,36 @@ export function createSignalingServer({
             });
           } catch (error) {
             ack(getErrorResponse(error, SignalingErrorCode.ConsumeFailed));
+          }
+        },
+      )
+      .on(
+        SignalingEvent.ConsumeData,
+        async ({ dataProducerId, roomId }, ack) => {
+          try {
+            const room = await roomManager.getOrCreateRoom(roomId);
+            const peer = room.getOrCreatePeer(socket.id);
+
+            if (!peer) throw new SignalingError("NoPeer");
+
+            const consumer = await peer.consumeData(dataProducerId);
+            if (!consumer) throw new SignalingError("ConsumeDataFailed");
+
+            consumer.on("dataproducerclose", () => {
+              socket.emit(SignalingEvent.EventDataProducerClosed, {
+                dataProducerId,
+              });
+            });
+
+            ack({
+              dataConsumerId: consumer.id,
+              dataProducerId,
+              sctpStreamParameters: consumer.sctpStreamParameters,
+              label: consumer.label,
+              protocol: consumer.protocol,
+            });
+          } catch (error) {
+            ack(getErrorResponse(error, SignalingErrorCode.ConsumeDataFailed));
           }
         },
       )

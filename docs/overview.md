@@ -18,13 +18,13 @@ mediasoup SFU 기반의 N:N 화상 통신 데모. 브라우저 여러 개로 같
 - 카메라 + 마이크 송출 (VP8 / Opus)
 - 같은 방 참가자 스트림 수신 (N:N)
 - 참가자 입퇴장에 따른 동적 갱신
+- 파일 첨부를 포함한 채팅
 
 ## Non-goals (이번 데모에서 안 하는 것)
 
 - 인증 / 계정 / 권한
 - 녹화 / 다시보기
 - 화면 공유 _(여유 되면 스트레치)_
-- 텍스트 채팅 _(여유 되면 스트레치)_
 - 다중 worker / 수평 확장, TURN 서버 운영
 - 모바일 네이티브 클라이언트
 
@@ -32,26 +32,34 @@ mediasoup SFU 기반의 N:N 화상 통신 데모. 브라우저 여러 개로 같
 
 서버측 시그널링 전체 루프(입장 → transport 생성/연결 → produce → consume → 정리)가 구현되어 있다.
 
-| 영역                               | 상태 | 비고                                                       |
-| ---------------------------------- | ---- | ---------------------------------------------------------- |
-| 시그널링 서버 (socket.io)          | ✅   | `mediasoup/src/signaling/server.ts`                        |
-| Worker / Router / Room / Peer 골격 | ✅   | 단일 worker, 방마다 router 1개                             |
-| `room:join`                        | ✅   | router capabilities + 기존 producer 목록 반환, 입장 알림   |
-| `transport:create`                 | ✅   | 방향(send/recv)별 WebRTC transport 생성, ICE/DTLS 파라미터 |
-| `transport:connect`                | ✅   | 클라 dtlsParameters로 서버측 transport 연결                |
-| `produce`                          | ✅   | Producer 생성 + `event:producer:new` 브로드캐스트          |
-| `produce:close`                    | ✅   | Producer 종료                                              |
-| `consume`                          | ✅   | `canConsume` 검사 + paused Consumer 생성, producerId 반환  |
-| `consume:resume`                   | ✅   | 클라 화면 연결 후 서버측 Consumer resume                   |
-| `event:producer:closed`            | ✅   | `producerclose` 시 구독자 본인에게 개별 알림               |
-| 에러 응답                          | ✅   | `SignalingErrorCode` 기반 `{ code, message }` 통일         |
+| 영역                               | 상태 | 비고                                                             |
+| ---------------------------------- | ---- | ---------------------------------------------------------------- |
+| 시그널링 서버 (socket.io)          | ✅   | `mediasoup/src/signaling/server.ts`                              |
+| Worker / Router / Room / Peer 골격 | ✅   | 단일 worker, 방마다 router 1개                                   |
+| `room:join`                        | ✅   | router capabilities + 기존 producer 목록 반환, 입장 알림         |
+| `transport:create`                 | ✅   | 방향(send/recv)별 WebRTC transport 생성, ICE/DTLS 파라미터       |
+| `transport:connect`                | ✅   | 클라 dtlsParameters로 서버측 transport 연결                      |
+| `produce`                          | ✅   | Producer 생성 + `event:producer:new` 브로드캐스트                |
+| `produce:close`                    | ✅   | Producer 종료                                                    |
+| `consume`                          | ✅   | `canConsume` 검사 + paused Consumer 생성, producerId 반환        |
+| `consume:resume`                   | ✅   | 클라 화면 연결 후 서버측 Consumer resume                         |
+| `event:producer:closed`            | ✅   | `producerclose` 시 구독자 본인에게 개별 알림                     |
+| 에러 응답                          | ✅   | `SignalingErrorCode` 기반 `{ code, message }` 통일               |
 | 연결 종료 정리                     | ✅   | `disconnecting` → peer 제거 + `peer.close()`, 빈 방 router close |
-| 브라우저 클라이언트 (`app/`)       | ✅   | Vite 8 / React 19, 핸드셰이크 전체 구현 (실기기 미디어 검증 전) |
+| 브라우저 클라이언트 (`app/`)       | ✅   | Vite 8 / React 19, 핸드셰이크 전체 구현 (실기기 미디어 검증 전)  |
 
 ### 알려진 보강 포인트
 
-- **(마이너) `producerclose` 시 `_consumers` 맵 미정리** — `transportclose`에서만 맵을 비운다. producer 종료 경로에서도 맵 정리 필요.
-- **(참고) `listenIps.announcedIp` 미설정** — 같은 PC localhost 2탭은 동작하나, 다른 기기/배포 환경에선 도달 가능한 IP 지정 필요.
+> 기존 항목(`producerclose` 시 `_consumers` 미정리, `announcedIp` 미설정)과
+> 방·라우터·트랜스포트 동시 생성 race는 모두 해결됨.
+> (`_consumers`는 `producerclose`/`transportclose` 양쪽에서 정리, `announcedIp`는 `config/env.ts`에서 주입,
+> 동시 생성은 생성 중 Promise 캐싱 + teardown 시 delete-before-await로 처리.)
+
+남은 항목:
+
+- **(참고) TURN 서버 미운영** — `announcedIp` 지정으로 같은 네트워크나 공인 IP 직접 도달 환경은 연결되나, 대칭 NAT/방화벽 환경에선 ICE 실패 가능. 실제 배포 시 TURN 필요. (Non-goals 참고)
+- **(마이너) `disconnecting` 정리가 fire-and-forget** — 에러는 `.catch`로 로깅하지만 정리 완료를 기다리지 않고 `disconnected` 로그를 남긴다. 동작엔 지장 없으나 로그 순서가 어긋날 수 있음.
+- **(확인 필요) 실기기 미디어 경로 미검증** — 클라 핸드셰이크는 전부 구현됐으나, 실제 카메라/마이크 스트림 송수신은 아직 검증 전.
 
 > 시그널링 메시지 상세는 [protocol.md](./protocol.md), 디렉터리 구조는
 > [structure.md](./structure.md) 참고.
