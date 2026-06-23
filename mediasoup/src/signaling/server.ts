@@ -98,6 +98,15 @@ export function createSignalingServer({
           ack(getErrorResponse(error, SignalingErrorCode.RoomJoinFailed));
         }
       })
+      .on(SignalingEvent.RoomLeave, async ({ roomId }, ack) => {
+        try {
+          await roomManager.removePeer(roomId, socket.id);
+          socket.leave(roomId);
+          ack({ success: true });
+        } catch (error) {
+          ack(getErrorResponse(error, SignalingErrorCode.RoomLeaveFailed));
+        }
+      })
       .on(
         SignalingEvent.TransportCreate,
         async ({ roomId, direction }, ack) => {

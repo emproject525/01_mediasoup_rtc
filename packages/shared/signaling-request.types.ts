@@ -27,6 +27,12 @@ export type RoomJoinResponse =
     }
   | ErrorResponse;
 
+/** {@link SignalingEvent.RoomLeave} 요청 payload */
+export type RoomLeaveRequest = { roomId: string };
+
+/** {@link SignalingEvent.RoomLeave} 응답(ack) */
+export type RoomLeaveResponse = { success: boolean } | ErrorResponse;
+
 /** {@link SignalingEvent.TransportCreate} 요청 payload */
 export type TransportCreateRequest = {
   roomId: string;
@@ -136,6 +142,10 @@ export interface ClientToServerEvents {
   [SignalingEvent.RoomJoin]: (
     req: RoomJoinRequest,
     ack: (res: RoomJoinResponse) => void,
+  ) => void;
+  [SignalingEvent.RoomLeave]: (
+    req: RoomLeaveRequest,
+    ack: (res: RoomLeaveResponse) => void,
   ) => void;
   [SignalingEvent.TransportCreate]: (
     req: TransportCreateRequest,

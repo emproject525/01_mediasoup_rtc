@@ -93,6 +93,18 @@ export class MediaSoupClient {
     };
   }
 
+  async leave() {
+    const res = unwrap(
+      await this.socket.emitWithAck(SignalingEvent.RoomLeave, {
+        roomId: this.roomId,
+      }),
+    );
+
+    return {
+      success: res.success,
+    };
+  }
+
   private async produceData(sendTransport: Transport) {
     // produceData()가 transport의 "producedata" 이벤트를 발화 → createTransport에 등록한
     // 핸들러가 서버로 sctpStreamParameters를 relay하고 dataProducerId를 받아온다.

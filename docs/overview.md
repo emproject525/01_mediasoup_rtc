@@ -55,14 +55,7 @@ mediasoup SFU 기반의 N:N 화상 통신 데모. 브라우저 여러 개로 같
 | 연결 종료 정리                     | ✅   | `disconnecting` → peer 제거 + `peer.close()`, 빈 방 router close                                         |
 | 브라우저 클라이언트 (`app/`)       | ✅   | Vite 8 / React 19, 핸드셰이크 + 채팅 UI + 음소거/영상 끄기. 2탭에서 채팅 동작 확인                       |
 
-### 알려진 보강 포인트
-
-> 기존 항목(`producerclose` 시 `_consumers` 미정리, `announcedIp` 미설정)과
-> 방·라우터·트랜스포트 동시 생성 race는 모두 해결됨.
-> (`_consumers`는 `producerclose`/`transportclose` 양쪽에서 정리, `announcedIp`는 `config/env.ts`에서 주입,
-> 동시 생성은 생성 중 Promise 캐싱 + teardown 시 delete-before-await로 처리.)
-
-남은 항목:
+### 남은 항목
 
 - **(참고) TURN 서버 미운영** — `announcedIp` 지정으로 같은 네트워크나 공인 IP 직접 도달 환경은 연결되나, 대칭 NAT/방화벽 환경에선 ICE 실패 가능. 실제 배포 시 TURN 필요. (Non-goals 참고)
 - **(마이너) `disconnecting` 정리가 fire-and-forget** — 에러는 `.catch`로 로깅하지만 정리 완료를 기다리지 않고 `disconnected` 로그를 남긴다. 동작엔 지장 없으나 로그 순서가 어긋날 수 있음.

@@ -5,6 +5,8 @@
 export const SignalingEvent = {
   /** 방 참여 */
   RoomJoin: "room:join",
+  /** 방 나감 */
+  RoomLeave: "room:leave",
   /** mediasoup transport create */
   TransportCreate: "transport:create",
   /** mediasoup transport connect */
@@ -56,6 +58,7 @@ export const SignalingErrorCode = {
   ConsumeResumeFailed: 10009,
   ProduceDataFailed: 10010,
   ConsumeDataFailed: 10011,
+  RoomLeaveFailed: 10012,
 } as const;
 
 export type SignalingErrorCodeKey = keyof typeof SignalingErrorCode;

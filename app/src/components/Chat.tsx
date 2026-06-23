@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { MessageId, type DataPayload } from "@rtc/packages";
-import type { ChatMessage } from "../hooks/useRoom";
+import type { ChatMessage } from "../features/connect-mediasoup/useRoom";
 
 type Props = {
   messages: ChatMessage[];

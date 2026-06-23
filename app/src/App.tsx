@@ -1,32 +1,29 @@
 import { useState } from "react";
-import { useRoom } from "./hooks/useRoom";
 import { VideoTile } from "./components/VideoTile";
 import { AudioSink } from "./components/AudioSink";
 import { Chat } from "./components/Chat";
+import { useApp, useLog } from "./shared";
 
 export default function App() {
   const {
-    status,
-    peerId,
-    localStream,
+    roomStatus,
+    local,
     remotes,
-    logs,
-    join,
-    leave,
+    leaveRoom,
+    joinRoom,
+    myPeerId,
+    togglePause,
     chats,
     sendChat,
-    audioPaused,
-    videoPaused,
-    toggleAudio,
-    toggleVideo,
-  } = useRoom();
+  } = useApp();
   const [roomId, setRoomId] = useState("test-room");
 
-  const joined = status === "joined";
-  const busy = status === "connecting";
-  const localVideoTrack = localStream?.getVideoTracks()[0];
-  const hasAudio = !!localStream?.getAudioTracks().length;
-  const hasVideo = !!localStream?.getVideoTracks().length;
+  const { logs } = useLog();
+
+  const joined = roomStatus === "joined";
+  const busy = roomStatus === "connecting";
+  const localVideo = local?.find(({ kind }) => kind === "video");
+  const localAudio = local?.find(({ kind }) => kind === "audio");
 
   const remoteVideos = remotes.filter((r) => r.kind === "video");
   const remoteAudios = remotes.filter((r) => r.kind === "audio");
@@ -43,41 +40,41 @@ export default function App() {
             placeholder="room id"
           />
           {joined ? (
-            <button onClick={leave}>나가기</button>
+            <button onClick={leaveRoom}>나가기</button>
           ) : (
-            <button onClick={() => join(roomId)} disabled={busy || !roomId}>
+            <button onClick={() => joinRoom(roomId)} disabled={busy || !roomId}>
               {busy ? "연결 중…" : "입장"}
             </button>
           )}
-          <span className={`status status-${status}`}>{status}</span>
-          {peerId && <span className="peer">me: {peerId}</span>}
+          <span className={`status status-${roomStatus}`}>{roomStatus}</span>
+          {myPeerId && <span className="peer">me: {myPeerId}</span>}
         </div>
       </header>
 
-      {joined && (hasAudio || hasVideo) && (
+      {joined && (localAudio || localVideo) && (
         <div className="media-controls">
-          {hasAudio && (
+          {localAudio && (
             <button
-              onClick={toggleAudio}
-              className={audioPaused ? "ctl off" : "ctl"}
+              onClick={() => togglePause(localAudio.producerId)}
+              className={localAudio.pause ? "ctl off" : "ctl"}
             >
-              {audioPaused ? "음소거 해제" : "음소거"}
+              {localAudio.pause ? "음소거 해제" : "음소거"}
             </button>
           )}
-          {hasVideo && (
+          {localVideo && (
             <button
-              onClick={toggleVideo}
-              className={videoPaused ? "ctl off" : "ctl"}
+              onClick={() => togglePause(localVideo.producerId)}
+              className={localVideo.pause ? "ctl off" : "ctl"}
             >
-              {videoPaused ? "영상 켜기" : "영상 끄기"}
+              {localVideo.pause ? "영상 켜기" : "영상 끄기"}
             </button>
           )}
         </div>
       )}
 
       <section className="grid">
-        {localVideoTrack && (
-          <VideoTile label="나 (local)" track={localVideoTrack} muted />
+        {localVideo && (
+          <VideoTile label="나 (local)" track={localVideo.track} muted />
         )}
         {remoteVideos.map((r) => (
           <VideoTile
