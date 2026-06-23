@@ -61,7 +61,7 @@ export default function App() {
               onClick={toggleAudio}
               className={audioPaused ? "ctl off" : "ctl"}
             >
-              {audioPaused ? "🔇 음소거 해제" : "🎙️ 음소거"}
+              {audioPaused ? "음소거 해제" : "음소거"}
             </button>
           )}
           {hasVideo && (
@@ -69,7 +69,7 @@ export default function App() {
               onClick={toggleVideo}
               className={videoPaused ? "ctl off" : "ctl"}
             >
-              {videoPaused ? "📷 영상 켜기" : "🚫 영상 끄기"}
+              {videoPaused ? "영상 켜기" : "영상 끄기"}
             </button>
           )}
         </div>

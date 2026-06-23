@@ -27,7 +27,7 @@ importers:
         version: 19.2.7(react@19.2.7)
       socket.io-client:
         specifier: ^4.8.3
-        version: 4.8.3
+        version: 4.8.3(supports-color@10.2.2)
     devDependencies:
       '@types/node':
         specifier: ^22.10.2
@@ -56,12 +56,15 @@ importers:
       dotenv:
         specifier: ^16.4.7
         version: 16.6.1
+      eventemitter3:
+        specifier: ^5.0.4
+        version: 5.0.4
       mediasoup:
         specifier: ^3.20.9
         version: 3.20.9
       socket.io:
         specifier: ^4.8.1
-        version: 4.8.3
+        version: 4.8.3(supports-color@10.2.2)
     devDependencies:
       '@types/node':
         specifier: ^22.10.2
@@ -1085,7 +1088,7 @@ snapshots:
 
   dotenv@16.6.1: {}
 
-  engine.io-client@6.6.6:
+  engine.io-client@6.6.6(supports-color@10.2.2):
     dependencies:
       '@socket.io/component-emitter': 3.1.2
       debug: 4.4.3(supports-color@10.2.2)
@@ -1099,7 +1102,7 @@ snapshots:
 
   engine.io-parser@5.2.3: {}
 
-  engine.io@6.6.8:
+  engine.io@6.6.8(supports-color@10.2.2):
     dependencies:
       '@types/cors': 2.8.19
       '@types/node': 22.19.21
@@ -1327,7 +1330,7 @@ snapshots:
 
   shebang-regex@3.0.0: {}
 
-  socket.io-adapter@2.5.7:
+  socket.io-adapter@2.5.7(supports-color@10.2.2):
     dependencies:
       debug: 4.4.3(supports-color@10.2.2)
       ws: 8.20.1
@@ -1336,33 +1339,33 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  socket.io-client@4.8.3:
+  socket.io-client@4.8.3(supports-color@10.2.2):
     dependencies:
       '@socket.io/component-emitter': 3.1.2
       debug: 4.4.3(supports-color@10.2.2)
-      engine.io-client: 6.6.6
-      socket.io-parser: 4.2.6
+      engine.io-client: 6.6.6(supports-color@10.2.2)
+      socket.io-parser: 4.2.6(supports-color@10.2.2)
     transitivePeerDependencies:
       - bufferutil
       - supports-color
       - utf-8-validate
 
-  socket.io-parser@4.2.6:
+  socket.io-parser@4.2.6(supports-color@10.2.2):
     dependencies:
       '@socket.io/component-emitter': 3.1.2
       debug: 4.4.3(supports-color@10.2.2)
     transitivePeerDependencies:
       - supports-color
 
-  socket.io@4.8.3:
+  socket.io@4.8.3(supports-color@10.2.2):
     dependencies:
       accepts: 1.3.8
       base64id: 2.0.0
       cors: 2.8.6
       debug: 4.4.3(supports-color@10.2.2)
-      engine.io: 6.6.8
-      socket.io-adapter: 2.5.7
-      socket.io-parser: 4.2.6
+      engine.io: 6.6.8(supports-color@10.2.2)
+      socket.io-adapter: 2.5.7(supports-color@10.2.2)
+      socket.io-parser: 4.2.6(supports-color@10.2.2)
     transitivePeerDependencies:
       - bufferutil
       - supports-color

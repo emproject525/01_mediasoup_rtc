@@ -6,13 +6,16 @@ export class RoomManager {
 
   constructor(private readonly mediasoupWorker: SingleWorkerType) {}
 
-  async getOrCreateRoom(roomId: string) {
+  async getOrCreateRoom(roomId: string, cb?: (room: Room) => void) {
     const existing = this.rooms.get(roomId);
     if (existing) return existing;
 
     const creating = (async () => {
       const router = await this.mediasoupWorker.getOrCreateRouter(roomId);
-      return new Room(roomId, router);
+      const room = new Room(roomId, router);
+      await room.registerObserver();
+      cb?.(room);
+      return room;
     })();
 
     this.rooms.set(roomId, creating);
@@ -28,7 +31,10 @@ export class RoomManager {
     if (!created) return;
 
     this.rooms.delete(roomId);
-    await this.mediasoupWorker.closeRouter(roomId);
+    await Promise.allSettled([
+      this.mediasoupWorker.closeRouter(roomId),
+      (await created).close(),
+    ]);
   }
 
   /**

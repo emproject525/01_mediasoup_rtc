@@ -30,6 +30,8 @@ export const SignalingEvent = {
   EventProducerClosed: "event:producer:closed",
   /** peer의 data producer가 종료되었을 때 */
   EventDataProducerClosed: "event:dataproducer:closed",
+  /** peer 중 누군가 말을 하였을 때 */
+  EventTalk: "event:talk",
 } as const;
 
 export type SignalingEventKey = keyof typeof SignalingEvent;

@@ -99,13 +99,16 @@ export class Peer {
     const pr = await transport?.produce({
       kind,
       rtpParameters,
+      appData: { peerId: this.id },
     });
 
     if (pr) {
       pr.on("transportclose", () => {
         this._producers.delete(pr.id);
       });
+
       this._producers.set(pr.id, pr);
+
       return pr;
     }
   }
@@ -122,6 +125,7 @@ export class Peer {
       sctpStreamParameters,
       label,
       protocol,
+      appData: { peerId: this.id },
     });
 
     if (pr) {
@@ -202,6 +206,10 @@ export class Peer {
 
   getDataProducer() {
     return this._dataProducer;
+  }
+
+  hasProducer(producerId: string) {
+    return this._producers.has(producerId);
   }
 
   async close() {

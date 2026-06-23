@@ -26,6 +26,11 @@ export type EventDataProducerClosed = {
   dataProducerId: string;
 };
 
+/** {@link SignalingEvent.EventTalk} event */
+export type EventTalk = {
+  talking: { peerId: string; volume: number }[];
+};
+
 /** 서버 → 클라이언트 (서버가 socket.emit 으로 보내는 이벤트들) */
 export interface ServerToClientEvents {
   [SignalingEvent.EventPeerJoined]: (event: EventPeerJoined) => void;
@@ -35,4 +40,5 @@ export interface ServerToClientEvents {
   [SignalingEvent.EventDataProducerClosed]: (
     event: EventDataProducerClosed,
   ) => void;
+  [SignalingEvent.EventTalk]: (event: EventTalk) => void;
 }

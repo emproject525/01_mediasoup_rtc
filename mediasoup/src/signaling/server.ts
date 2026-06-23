@@ -54,7 +54,11 @@ export function createSignalingServer({
     socket
       .on(SignalingEvent.RoomJoin, async ({ roomId }, ack) => {
         try {
-          const room = await roomManager.getOrCreateRoom(roomId);
+          const room = await roomManager.getOrCreateRoom(roomId, (room) => {
+            room.onTalk((talking) => {
+              io.to(roomId).emit(SignalingEvent.EventTalk, { talking });
+            });
+          });
           const peer = room.getOrCreatePeer(socket.id);
 
           await socket.join(roomId);
@@ -162,6 +166,8 @@ export function createSignalingServer({
             );
 
             if (!producer) throw new SignalingError("ProduceFailed");
+
+            if (kind === "audio") await room.observeProducer(producer.id);
 
             ack({ producerId: producer.id });
 
@@ -292,18 +298,17 @@ export function createSignalingServer({
         } catch (error) {
           ack(getErrorResponse(error, SignalingErrorCode.ConsumeResumeFailed));
         }
+      })
+      .on("disconnecting", () => {
+        // disconnect 시점엔 socket.rooms 가 이미 비므로, disconnecting 에서 처리
+        for (const roomId of socket.rooms) {
+          if (roomId === socket.id) continue; // 자기 자신 방은 제외
+          roomManager.removePeer(roomId, socket.id).catch((error) => {
+            console.error("[signaling] removePeer failed", error);
+          });
+        }
+        console.info("[signaling] disconnected", socket.id);
       });
-
-    // disconnect 시점엔 socket.rooms 가 이미 비므로, disconnecting 에서 처리
-    socket.on("disconnecting", () => {
-      for (const roomId of socket.rooms) {
-        if (roomId === socket.id) continue; // 자기 자신 방은 제외
-        roomManager.removePeer(roomId, socket.id).catch((error) => {
-          console.error("[signaling] removePeer failed", error);
-        });
-      }
-      console.info("[signaling] disconnected", socket.id);
-    });
   });
 
   return {
