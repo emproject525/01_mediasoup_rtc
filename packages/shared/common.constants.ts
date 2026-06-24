@@ -22,6 +22,8 @@ export const SignalingEvent = {
   ConsumeData: "consume:data",
   /** 첫 프레임 유실 방지의 목적으로 consume srcObject 연결 완료 후 호출 */
   ConsumeResume: "consume:resume",
+  /** consumer의 layer 변경 (simulcast) */
+  ConsumeChangeLayer: "consume:change:layer",
   /** consume 종료 */
   ConsumeClose: "consume:close",
   /** peer 입장 */
@@ -62,6 +64,7 @@ export const SignalingErrorCode = {
   ConsumeDataFailed: 10011,
   RoomLeaveFailed: 10012,
   ConsumeCloseFailed: 10013,
+  ConsumeChangeLayerFailed: 10014,
 } as const;
 
 export type SignalingErrorCodeKey = keyof typeof SignalingErrorCode;

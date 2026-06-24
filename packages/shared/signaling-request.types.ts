@@ -134,6 +134,24 @@ export type ConsumeResumeRequest = { roomId: string; consumerId: string };
 /** {@link SignalingEvent.ConsumeResume} 응답(ack) */
 export type ConsumeResumeResponse = { success: true } | ErrorResponse;
 
+/** {@link SignalingEvent.ConsumeLayers} 요청 payload */
+export type ConsumeChangeLayerRequest = {
+  roomId: string;
+  consumerId: string;
+  /**
+   * 해상도
+   * - `0` low
+   * - `1` medium
+   * - `2` high
+   */
+  spatialLayer: 0 | 1 | 2;
+  /** 프레임레이트 단계 */
+  temporalLayer?: number;
+};
+
+/** {@link SignalingEvent.ConsumeLayers} 응답(ack) */
+export type ConsumeChangeLayerResponse = { success: true } | ErrorResponse;
+
 /** {@link SignalingEvent.ConsumeClose} 요청 payload */
 export type ConsumeCloseRequest = { roomId: string; consumerId: string };
 
@@ -184,6 +202,10 @@ export interface ClientToServerEvents {
   [SignalingEvent.ConsumeResume]: (
     req: ConsumeResumeRequest,
     ack: (res: ConsumeResumeResponse) => void,
+  ) => void;
+  [SignalingEvent.ConsumeChangeLayer]: (
+    req: ConsumeChangeLayerRequest,
+    ack: (res: ConsumeChangeLayerResponse) => void,
   ) => void;
   [SignalingEvent.ConsumeClose]: (
     req: ConsumeCloseRequest,

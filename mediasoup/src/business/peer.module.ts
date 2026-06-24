@@ -161,6 +161,9 @@ export class Peer {
       // 클라에서 srcObject로 연결 완료 후 resume 실행
       // ================================
       paused: true,
+      preferredLayers: {
+        spatialLayer: 0,
+      },
     });
 
     if (co) {
@@ -198,6 +201,17 @@ export class Peer {
 
   async resumeConsumer(consumerId: string) {
     await this._consumers.get(consumerId)?.resume();
+  }
+
+  async changeConsumerLayer(
+    consumerId: string,
+    spatialLayer: number,
+    temporalLayer?: number,
+  ) {
+    const consumer = this._consumers.get(consumerId);
+    if (!consumer) return;
+
+    await consumer.setPreferredLayers({ spatialLayer, temporalLayer });
   }
 
   closeConsumer(consumerId: string) {

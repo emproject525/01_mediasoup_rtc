@@ -308,6 +308,32 @@ export function createSignalingServer({
           ack(getErrorResponse(error, SignalingErrorCode.ConsumeResumeFailed));
         }
       })
+      .on(
+        SignalingEvent.ConsumeChangeLayer,
+        async ({ roomId, consumerId, spatialLayer, temporalLayer }, ack) => {
+          try {
+            const room = await roomManager.getOrCreateRoom(roomId);
+            const peer = room.getOrCreatePeer(socket.id);
+
+            if (!peer) throw new SignalingError("NoPeer");
+
+            await peer.changeConsumerLayer(
+              consumerId,
+              spatialLayer,
+              temporalLayer,
+            );
+
+            ack({ success: true });
+          } catch (error) {
+            ack(
+              getErrorResponse(
+                error,
+                SignalingErrorCode.ConsumeChangeLayerFailed,
+              ),
+            );
+          }
+        },
+      )
       .on(SignalingEvent.ConsumeClose, async ({ roomId, consumerId }, ack) => {
         try {
           const room = await roomManager.getOrCreateRoom(roomId);

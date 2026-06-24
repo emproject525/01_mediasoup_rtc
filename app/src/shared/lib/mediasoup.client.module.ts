@@ -102,21 +102,30 @@ export class MediaSoupClient {
           const olded = [...this.consumedVideoProducerIds.values()].sort(
             (a, b) => a.timestamp - b.timestamp,
           )[0];
+          const oldedConsumerId = this.getConsumerIdByProduerId(
+            olded.producerId,
+          );
 
-          let consumerId: string = "";
-          this.consumers.forEach((consumer) => {
-            if (consumer.producerId === olded.producerId)
-              consumerId = consumer.id;
-          });
-
-          if (consumerId) {
+          if (oldedConsumerId) {
             this.consumedVideoProducerIds.delete(olded.producerId);
-            await this.closeConsume(consumerId);
+            await this.closeConsume(oldedConsumerId);
           }
         }
 
         await this.consumeWithinLimit(videoProducerId, peerId, "video");
       }
+    }
+
+    const talkingIds = new Set(
+      event.talking.map((t) => t.videoProducerId).filter(Boolean),
+    );
+    for (const consumer of this.consumers.values()) {
+      if (!this.consumedVideoProducerIds.has(consumer.producerId)) continue;
+      this.socket.emitWithAck(SignalingEvent.ConsumeChangeLayer, {
+        consumerId: consumer.id,
+        roomId: this.roomId,
+        spatialLayer: talkingIds.has(consumer.producerId) ? 1 : 0,
+      });
     }
   }, 300);
 
@@ -306,6 +315,19 @@ export class MediaSoupClient {
     );
     this.emitter.emit("closed", { consumerId });
     return success;
+  }
+
+  private getConsumerIdByProduerId(producerId: string) {
+    let consumerId: string | null = null;
+
+    for (const consumer of this.consumers) {
+      if (consumer[1].producerId === producerId) {
+        consumerId = consumer[0];
+        break;
+      }
+    }
+
+    return consumerId;
   }
 
   /** producer가 닫혔을 때 해당 consumer 정리 */
