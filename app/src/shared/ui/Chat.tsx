@@ -1,24 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import { MessageId, type DataPayload } from "@rtc/packages";
-import type { ChatMessage } from "../features/connect-mediasoup/useRoom";
+import { useChat } from "..";
 
-type Props = {
-  messages: ChatMessage[];
-  onSend: (text: string) => void;
-};
-
-export function Chat({ messages, onSend }: Props) {
+export function Chat() {
+  const { chats, sendChat } = useChat();
   const [text, setText] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
 
   // 새 메시지마다 맨 아래로 스크롤
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [chats]);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSend(text);
+    sendChat(text);
     setText("");
   };
 
@@ -27,7 +23,7 @@ export function Chat({ messages, onSend }: Props) {
       <div className="chat-title">chat</div>
 
       <div className="chat-messages">
-        {messages.map((m, i) => (
+        {chats.map((m, i) => (
           <div key={i} className={`chat-msg ${m.self ? "self" : ""}`}>
             <span className="chat-from">{m.self ? "me" : m.from}</span>
             <span className="chat-body">{renderBody(m.payload)}</span>

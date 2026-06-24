@@ -15,7 +15,7 @@ import {
   SIGNALING_URL,
 } from "../lib";
 import { useLog } from "./LogContext";
-import { DataPayload, MessageId, SignalingEvent } from "@rtc/packages";
+import { SignalingEvent } from "@rtc/packages";
 import { MediaKind } from "mediasoup-client/types";
 
 interface AppContextType {
@@ -41,8 +41,6 @@ interface AppContextType {
       }[]
     | null;
   togglePause(producerId: string): void;
-  chats: { from: string; self: boolean; payload: DataPayload }[];
-  sendChat(text: string): void;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -63,7 +61,6 @@ export function AppContextProvider({ children }: { children?: ReactNode }) {
   const [room, setRoom] = useState<AppContextType["room"]>(null);
   const [roomStatus, setRoomStatus] =
     useState<AppContextType["roomStatus"]>("idle");
-  const [chats, setChats] = useState<AppContextType["chats"]>([]);
   const [remotes, setRemotes] = useState<AppContextType["remotes"]>([]);
   const [local, setLocal] = useState<AppContextType["local"]>(null);
 
@@ -73,41 +70,6 @@ export function AppContextProvider({ children }: { children?: ReactNode }) {
       if (remote) setRemotes((p) => [...p, remote]);
     },
     [],
-  );
-
-  const consumeData = useCallback(
-    async (client: MediaSoupClient, producerId: string, peerId: string) => {
-      const consumer = await client.consumeData(producerId);
-      consumer?.on("message", (payload) => {
-        setChats((prev) => [
-          ...prev,
-          {
-            from: peerId,
-            self: false,
-            payload: JSON.parse(payload) as DataPayload,
-          },
-        ]);
-      });
-    },
-    [],
-  );
-
-  const sendChat = useCallback(
-    (text: string) => {
-      const trimmed = text.trim();
-      if (!trimmed) return;
-
-      const payload: DataPayload = {
-        messageId: MessageId.Chat,
-        message: trimmed,
-      };
-
-      room?.sendChat(payload);
-
-      // 본인 메시지는 SFU가 되돌려주지 않으므로 로컬에 직접 추가
-      setChats((p) => [...p, { from: myPeerId ?? "me", self: true, payload }]);
-    },
-    [myPeerId, room],
   );
 
   const togglePause = useCallback(
@@ -155,7 +117,7 @@ export function AppContextProvider({ children }: { children?: ReactNode }) {
             SignalingEvent.EventDataProducerNew,
             async ({ peerId, dataProducerId }) => {
               addLog(`new data producer: ${peerId}`);
-              await consumeData(client, dataProducerId, peerId);
+              await client.consumeData(dataProducerId, peerId);
             },
           )
           .on(SignalingEvent.EventProducerClosed, ({ producerId }) => {
@@ -201,7 +163,7 @@ export function AppContextProvider({ children }: { children?: ReactNode }) {
         // 기본 data producer 수신
         // ==========================================
         for (const p of dataProducers) {
-          await consumeData(client, p.dataProducerId, p.peerId);
+          await client.consumeData(p.dataProducerId, peerId);
         }
 
         setRoomStatus("joined");
@@ -212,7 +174,7 @@ export function AppContextProvider({ children }: { children?: ReactNode }) {
         setRoomStatus("error");
       }
     },
-    [socket, roomStatus, addLog, consume, consumeData],
+    [socket, roomStatus, addLog, consume],
   );
 
   const leaveRoom = useCallback(async () => {
@@ -227,7 +189,6 @@ export function AppContextProvider({ children }: { children?: ReactNode }) {
       });
       setLocal([]);
       setRemotes([]);
-      setChats([]);
       setMyPeerId(null);
 
       setRoomStatus("idle");
@@ -247,8 +208,6 @@ export function AppContextProvider({ children }: { children?: ReactNode }) {
         remotes,
         local,
         togglePause,
-        chats,
-        sendChat,
       }}
     >
       {children}
@@ -259,7 +218,7 @@ export function AppContextProvider({ children }: { children?: ReactNode }) {
 export function useApp() {
   const context = useContext(AppContext);
   if (context === null) {
-    throw new Error("useAppContext::NoProvider");
+    throw new Error("useApp::NoProvider");
   }
   return context;
 }

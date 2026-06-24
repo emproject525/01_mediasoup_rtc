@@ -2,13 +2,19 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./styles.css";
-import { LogContextProvider, AppContextProvider } from "./shared";
+import {
+  LogContextProvider,
+  AppContextProvider,
+  ChatContextProvider,
+} from "./shared";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <LogContextProvider>
       <AppContextProvider>
-        <App />
+        <ChatContextProvider>
+          <App />
+        </ChatContextProvider>
       </AppContextProvider>
     </LogContextProvider>
   </StrictMode>,

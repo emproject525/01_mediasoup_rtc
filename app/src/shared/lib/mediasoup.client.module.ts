@@ -32,6 +32,7 @@ type MeidaSoupClientEmitterEvents = {
     },
   ];
   log: [string];
+  data: [{ peerId: string; payload: DataPayload }];
 };
 
 /** ack 응답이 에러인지 판별 (에러 응답에만 code 필드가 있음) */
@@ -120,7 +121,7 @@ export class MediaSoupClient {
     this.dataProducer.send(JSON.stringify(payload));
   }
 
-  async consumeData(dataProducerId: string) {
+  async consumeData(dataProducerId: string, peerId: string) {
     if (!this.recvTransport) return;
 
     const res = unwrap(
@@ -137,6 +138,12 @@ export class MediaSoupClient {
       label: res.label,
       protocol: res.protocol,
     });
+    consumer.on("message", (payload) =>
+      this.emitter.emit("data", {
+        peerId,
+        payload: JSON.parse(payload) as DataPayload,
+      }),
+    );
 
     this.dataConsumers.set(res.dataConsumerId, consumer);
     return consumer;
@@ -242,6 +249,13 @@ export class MediaSoupClient {
   ) => {
     this.emitter.on("connection_state_changed", handler);
     return () => this.emitter.off("connection_state_changed", handler);
+  };
+
+  onData = (
+    handler: EventEmitter.EventListener<MeidaSoupClientEmitterEvents, "data">,
+  ) => {
+    this.emitter.on("data", handler);
+    return () => this.emitter.off("data", handler);
   };
 
   async replaceTrack(producerId: string, track: MediaStreamTrack) {

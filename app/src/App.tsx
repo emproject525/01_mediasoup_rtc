@@ -1,7 +1,5 @@
 import { useState } from "react";
-import { VideoTile } from "./components/VideoTile";
-import { AudioSink } from "./components/AudioSink";
-import { Chat } from "./components/Chat";
+import { Chat, AudioSink, VideoTile } from "./shared/ui";
 import { useApp, useLog } from "./shared";
 
 export default function App() {
@@ -13,8 +11,6 @@ export default function App() {
     joinRoom,
     myPeerId,
     togglePause,
-    chats,
-    sendChat,
   } = useApp();
   const [roomId, setRoomId] = useState("test-room");
 
@@ -90,7 +86,7 @@ export default function App() {
       ))}
 
       <div className="bottom">
-        {joined && <Chat messages={chats} onSend={sendChat} />}
+        {joined && <Chat />}
 
         <aside className="logs">
           <div className="logs-title">log</div>
