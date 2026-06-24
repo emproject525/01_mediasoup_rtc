@@ -1,7 +1,9 @@
 import { Device, type types } from "mediasoup-client";
 import {
+  EventTalk,
   SignalingEvent,
   TransportResponse,
+  VIDEO_CONSUMER_MAX,
   type DataPayload,
   type ErrorResponse,
 } from "@rtc/packages";
@@ -13,6 +15,7 @@ import {
   SctpStreamParameters,
   Transport,
 } from "mediasoup-client/types";
+import { debounce } from "./utils";
 
 export type RemoteStream = {
   consumerId: string;
@@ -33,6 +36,8 @@ type MeidaSoupClientEmitterEvents = {
   ];
   log: [string];
   data: [{ peerId: string; payload: DataPayload }];
+  consumed: [RemoteStream];
+  closed: [{ consumerId: string }];
 };
 
 /** ack 응답이 에러인지 판별 (에러 응답에만 code 필드가 있음) */
@@ -53,20 +58,67 @@ function unwrap<T>(res: T): Exclude<T, ErrorResponse> {
  * join → device.load → (lazy) transport 생성/연결 → produce / consume → resume.
  */
 export class MediaSoupClient {
+  private readonly emitter = new EventEmitter<MeidaSoupClientEmitterEvents>();
+
   private device = new Device();
   private sendTransport?: types.Transport;
   private recvTransport?: types.Transport;
-  private consumedProducerIds = new Set<string>();
-  private readonly emitter = new EventEmitter<MeidaSoupClientEmitterEvents>();
+
   readonly producers = new Map<string, types.Producer>();
   readonly consumers = new Map<string, types.Consumer>();
+  private consumedAudioProducerIds = new Set<string>();
+  private readonly consumedVideoProducerIds = new Map<
+    string,
+    { timestamp: number; producerId: string }
+  >(new Map());
+
   dataProducer?: DataProducer;
   readonly dataConsumers = new Map<string, types.DataConsumer>();
 
   constructor(
     private readonly socket: AppSocket,
     private readonly roomId: string,
-  ) {}
+  ) {
+    socket.on(SignalingEvent.EventTalk, this.subscribeEventTalk);
+  }
+
+  private subscribeEventTalk = debounce(async (event: EventTalk) => {
+    const myProducerIds = new Set(this.producers.keys());
+
+    for (const talking of event.talking) {
+      const { videoProducerId, peerId } = talking;
+      if (!videoProducerId || myProducerIds.has(videoProducerId)) continue;
+
+      if (this.consumedVideoProducerIds.has(videoProducerId)) {
+        this.consumedVideoProducerIds.set(videoProducerId, {
+          producerId: videoProducerId,
+          timestamp: Date.now(),
+        });
+      } else {
+        const upper = this.consumedVideoProducerIds.size >= VIDEO_CONSUMER_MAX;
+
+        if (upper) {
+          // 오래된 것 제거
+          const olded = [...this.consumedVideoProducerIds.values()].sort(
+            (a, b) => a.timestamp - b.timestamp,
+          )[0];
+
+          let consumerId: string = "";
+          this.consumers.forEach((consumer) => {
+            if (consumer.producerId === olded.producerId)
+              consumerId = consumer.id;
+          });
+
+          if (consumerId) {
+            this.consumedVideoProducerIds.delete(olded.producerId);
+            await this.closeConsume(consumerId);
+          }
+        }
+
+        await this.consumeWithinLimit(videoProducerId, peerId, "video");
+      }
+    }
+  }, 300);
 
   /** 방 입장 + 디바이스 로드. 기존 producer 목록을 반환한다. */
   async join() {
@@ -168,14 +220,39 @@ export class MediaSoupClient {
     return producer;
   }
 
+  async consumeWithinLimit(
+    producerId: string,
+    peerId: string,
+    kind: MediaKind,
+  ) {
+    if (!this.recvTransport) return null;
+
+    if (kind === "audio" && this.consumedAudioProducerIds.has(producerId))
+      return null;
+
+    if (
+      kind === "video" &&
+      (this.consumedVideoProducerIds.has(producerId) ||
+        this.consumedVideoProducerIds.size >= VIDEO_CONSUMER_MAX)
+    )
+      return null;
+
+    kind === "video"
+      ? this.consumedVideoProducerIds.set(producerId, {
+          timestamp: Date.now(),
+          producerId,
+        })
+      : this.consumedAudioProducerIds.add(producerId);
+
+    return this.consume(producerId, peerId);
+  }
+
   /** 특정 producer 수신. 이미 받고 있으면 null. */
-  async consume(
+  private async consume(
     producerId: string,
     peerId: string,
   ): Promise<RemoteStream | null> {
-    if (this.consumedProducerIds.has(producerId) || !this.recvTransport)
-      return null;
-    this.consumedProducerIds.add(producerId);
+    if (!this.recvTransport) return null;
 
     const res = unwrap(
       await this.socket.emitWithAck(SignalingEvent.Consume, {
@@ -201,18 +278,40 @@ export class MediaSoupClient {
       }),
     );
 
-    return {
+    const remote: RemoteStream = {
       consumerId: consumer.id,
       producerId,
       peerId,
       kind: res.kind,
       track: consumer.track,
     };
+    // 초기/신규/active-speaker swap 모든 경로가 이 이벤트로 UI(remotes)에 반영된다.
+    this.emitter.emit("consumed", remote);
+    return remote;
+  }
+
+  async closeConsume(consumerId: string) {
+    const producerId = this.consumers.get(consumerId)?.producerId;
+    if (producerId) {
+      this.consumedAudioProducerIds.delete(producerId);
+      this.consumedVideoProducerIds.delete(producerId);
+    }
+    this.consumers.delete(consumerId);
+
+    const { success } = unwrap(
+      await this.socket.emitWithAck(SignalingEvent.ConsumeClose, {
+        roomId: this.roomId,
+        consumerId,
+      }),
+    );
+    this.emitter.emit("closed", { consumerId });
+    return success;
   }
 
   /** producer가 닫혔을 때 해당 consumer 정리 */
   removeByProducerId(producerId: string) {
-    this.consumedProducerIds.delete(producerId);
+    this.consumedAudioProducerIds.delete(producerId);
+    this.consumedVideoProducerIds.delete(producerId);
     for (const [id, consumer] of this.consumers) {
       if (consumer.producerId === producerId) {
         consumer.close();
@@ -232,6 +331,9 @@ export class MediaSoupClient {
     this.sendTransport?.close();
     this.recvTransport?.close();
     this.emitter.removeAllListeners();
+
+    // socket 이벤트 제거
+    this.socket.off(SignalingEvent.EventTalk, this.subscribeEventTalk);
   }
 
   onLog = (
@@ -256,6 +358,23 @@ export class MediaSoupClient {
   ) => {
     this.emitter.on("data", handler);
     return () => this.emitter.off("data", handler);
+  };
+
+  onConsumed = (
+    handler: EventEmitter.EventListener<
+      MeidaSoupClientEmitterEvents,
+      "consumed"
+    >,
+  ) => {
+    this.emitter.on("consumed", handler);
+    return () => this.emitter.off("consumed", handler);
+  };
+
+  onClosed = (
+    handler: EventEmitter.EventListener<MeidaSoupClientEmitterEvents, "closed">,
+  ) => {
+    this.emitter.on("closed", handler);
+    return () => this.emitter.off("closed", handler);
   };
 
   async replaceTrack(producerId: string, track: MediaStreamTrack) {

@@ -308,6 +308,20 @@ export function createSignalingServer({
           ack(getErrorResponse(error, SignalingErrorCode.ConsumeResumeFailed));
         }
       })
+      .on(SignalingEvent.ConsumeClose, async ({ roomId, consumerId }, ack) => {
+        try {
+          const room = await roomManager.getOrCreateRoom(roomId);
+          const peer = room.getOrCreatePeer(socket.id);
+
+          if (!peer) throw new SignalingError("NoPeer");
+
+          peer.closeConsumer(consumerId);
+
+          ack({ success: true });
+        } catch (error) {
+          ack(getErrorResponse(error, SignalingErrorCode.ConsumeCloseFailed));
+        }
+      })
       .on("disconnecting", () => {
         // disconnect 시점엔 socket.rooms 가 이미 비므로, disconnecting 에서 처리
         for (const roomId of socket.rooms) {

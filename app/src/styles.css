@@ -103,10 +103,31 @@ body {
   border: 1px solid #23232c;
 }
 
+.tile-wrap {
+  min-width: 0; /* grid item이 교체/재배치 시 줄어들 수 있게 */
+}
+
 .tile video {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+
+.tile video.is-ready {
+  opacity: 1;
+}
+
+.tile-placeholder {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 36px;
+  font-weight: 600;
+  color: #6b6b78;
+  background: #15151b;
 }
 
 .tile-label {

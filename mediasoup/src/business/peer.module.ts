@@ -200,6 +200,11 @@ export class Peer {
     await this._consumers.get(consumerId)?.resume();
   }
 
+  closeConsumer(consumerId: string) {
+    this._consumers.get(consumerId)?.close();
+    this._consumers.delete(consumerId);
+  }
+
   getProducers() {
     return this._producers.values();
   }

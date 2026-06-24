@@ -1,6 +1,8 @@
 import { useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { Chat, AudioSink, VideoTile } from "./shared/ui";
 import { useApp, useLog } from "./shared";
+import { VIDEO_CONSUMER_MAX } from "@rtc/packages";
 
 export default function App() {
   const {
@@ -21,7 +23,10 @@ export default function App() {
   const localVideo = local?.find(({ kind }) => kind === "video");
   const localAudio = local?.find(({ kind }) => kind === "audio");
 
-  const remoteVideos = remotes.filter((r) => r.kind === "video");
+  // video 타일은 화면 용량(C=25)까지만. consume 로직도 25로 제한하지만 UI에서도 하드 cap.
+  const remoteVideos = remotes
+    .filter((r) => r.kind === "video")
+    .slice(0, VIDEO_CONSUMER_MAX);
   const remoteAudios = remotes.filter((r) => r.kind === "audio");
 
   return (
@@ -69,16 +74,36 @@ export default function App() {
       )}
 
       <section className="grid">
-        {localVideo && (
-          <VideoTile label="나 (local)" track={localVideo.track} muted />
-        )}
-        {remoteVideos.map((r) => (
-          <VideoTile
-            key={r.consumerId}
-            label={`peer ${r.peerId}`}
-            track={r.track}
-          />
-        ))}
+        <AnimatePresence>
+          {localVideo && (
+            <motion.div
+              key="local"
+              className="tile-wrap"
+              layout
+              initial={{ opacity: 0, scale: 0.92 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.92 }}
+              transition={{ duration: 0.25, ease: "easeOut" }}
+            >
+              <VideoTile label="나 (local)" track={localVideo.track} muted />
+            </motion.div>
+          )}
+          {remoteVideos.map((r) => (
+            // key는 swap마다 바뀌는 consumerId가 아니라 안정적인 peerId로 — 그래야
+            // React가 DOM을 재활용하고 layout 애니메이션이 "슉" 슬라이드로 이어진다.
+            <motion.div
+              key={r.peerId}
+              className="tile-wrap"
+              layout
+              initial={{ opacity: 0, scale: 0.92 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.92 }}
+              transition={{ duration: 0.25, ease: "easeOut" }}
+            >
+              <VideoTile label={`peer ${r.peerId}`} track={r.track} />
+            </motion.div>
+          ))}
+        </AnimatePresence>
       </section>
 
       {remoteAudios.map((r) => (

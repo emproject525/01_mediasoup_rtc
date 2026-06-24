@@ -11,6 +11,7 @@
   "dependencies": {
     "@rtc/packages": "workspace:*",
     "eventemitter3": "^5.0.4",
+    "framer-motion": "^12.40.0",
     "mediasoup-client": "^3.21.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",

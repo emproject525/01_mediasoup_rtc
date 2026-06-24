@@ -1,3 +1,5 @@
+import { EventTalk } from "@rtc/packages";
+
 export type RoomEvents = {
-  talk: [{ peerId: string; volume: number }[]];
+  talk: [EventTalk["talking"]];
 };

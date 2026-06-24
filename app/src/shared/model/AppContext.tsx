@@ -12,6 +12,7 @@ import {
   createSocket,
   getUserStream,
   MediaSoupClient,
+  RemoteStream,
   SIGNALING_URL,
 } from "../lib";
 import { useLog } from "./LogContext";
@@ -25,13 +26,7 @@ interface AppContextType {
   roomStatus: "idle" | "connecting" | "joined" | "error";
   joinRoom(roomId: string): Promise<void>;
   leaveRoom(): void;
-  remotes: {
-    producerId: string;
-    consumerId: string;
-    peerId: string;
-    kind: "audio" | "video";
-    track: MediaStreamTrack;
-  }[];
+  remotes: RemoteStream[];
   local:
     | {
         kind: "audio" | "video";
@@ -64,14 +59,6 @@ export function AppContextProvider({ children }: { children?: ReactNode }) {
   const [remotes, setRemotes] = useState<AppContextType["remotes"]>([]);
   const [local, setLocal] = useState<AppContextType["local"]>(null);
 
-  const consume = useCallback(
-    async (client: MediaSoupClient, producerId: string, peerId: string) => {
-      const remote = await client.consume(producerId, peerId);
-      if (remote) setRemotes((p) => [...p, remote]);
-    },
-    [],
-  );
-
   const togglePause = useCallback(
     async (producerId: string) => {
       const idx = local?.findIndex((l) => l.producerId === producerId) ?? -1;
@@ -100,6 +87,11 @@ export function AppContextProvider({ children }: { children?: ReactNode }) {
         client.onConnectionStateChanged(({ direction, state }) =>
           addLog(`[${direction}] transport state is ${state}`),
         );
+        // 초기 consume + active-speaker swap 모두 이 두 구독으로 remotes에 반영된다.
+        client.onConsumed((remote) => setRemotes((p) => [...p, remote]));
+        client.onClosed(({ consumerId }) =>
+          setRemotes((p) => p.filter((r) => r.consumerId !== consumerId)),
+        );
         setRoom(client);
 
         socket
@@ -109,8 +101,8 @@ export function AppContextProvider({ children }: { children?: ReactNode }) {
           .on(
             SignalingEvent.EventProducerNew,
             async ({ producerId, peerId, kind }) => {
-              addLog(`new producer: ${kind} from ${peerId}`);
-              await consume(client, producerId, peerId);
+              addLog(`new producer: ${kind} ${producerId} from ${peerId}`);
+              await client.consumeWithinLimit(producerId, peerId, kind);
             },
           )
           .on(
@@ -137,7 +129,7 @@ export function AppContextProvider({ children }: { children?: ReactNode }) {
         const response = await Promise.all(
           tracks.map(async (track) => {
             const producer = await client.produce(track);
-            addLog(`start producing ${track.kind} ...`);
+            addLog(`start producing ${track.kind} ${producer?.id} ...`);
             return { track, producer };
           }),
         );
@@ -156,7 +148,7 @@ export function AppContextProvider({ children }: { children?: ReactNode }) {
         // 기본 producer 수신
         // ==========================================
         for (const p of producers) {
-          await consume(client, p.producerId, p.peerId);
+          await client.consumeWithinLimit(p.producerId, peerId, p.kind);
         }
 
         // ==========================================
@@ -174,7 +166,7 @@ export function AppContextProvider({ children }: { children?: ReactNode }) {
         setRoomStatus("error");
       }
     },
-    [socket, roomStatus, addLog, consume],
+    [socket, roomStatus, addLog],
   );
 
   const leaveRoom = useCallback(async () => {

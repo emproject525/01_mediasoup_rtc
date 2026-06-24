@@ -2,6 +2,7 @@ import { AudioLevelObserver, MediaKind, Router } from "mediasoup/types";
 import { Peer } from "./peer.module";
 import EventEmitter from "eventemitter3";
 import { RoomEvents } from "./room.types";
+import { EventTalk, VIDEO_CONSUMER_MAX } from "@rtc/packages";
 
 export class Room {
   readonly peers = new Map<string, Peer>();
@@ -17,19 +18,24 @@ export class Room {
     if (this.audioLevelObserver) return;
 
     this.audioLevelObserver = await this.router.createAudioLevelObserver({
-      maxEntries: 25, // 소리가 가장 큰 25명만 보고. 동시 발언자 여럿을 하이라이트하려면 수치 증가
+      maxEntries: VIDEO_CONSUMER_MAX, // 소리가 가장 큰 VIDEO_CONSUMER_MAX명만 보고. 동시 발언자 여럿을 하이라이트하려면 수치 증가
       interval: 500, // ms 단위
       threshold: -55, // 민감도 (낮을수록 더 작은 소리도 소리를 내는 것으로 판단)
     });
     this.audioLevelObserver
       .on("volumes", (volumes) => {
-        this.emitter.emit(
-          "talk",
-          volumes.map(({ producer, volume }) => ({
+        const talking = volumes
+          .map(({ producer, volume }) => ({
             peerId: producer.appData.peerId as string,
+            videoProducerId: this.getVideoProducerIdByAudioProducerId(
+              producer.id,
+            ),
             volume,
-          })),
-        );
+          }))
+          .filter(
+            ({ videoProducerId }) => !!videoProducerId,
+          ) as EventTalk["talking"];
+        this.emitter.emit("talk", talking);
       })
       .on("silence", () => {
         this.emitter.emit("talk", []);
@@ -64,6 +70,19 @@ export class Room {
       }
     }
     return list;
+  }
+
+  getVideoProducerIdByAudioProducerId(audioProducerId: string) {
+    const producers = this.producers("");
+    const peerId = producers.find(
+      (p) => p.producerId === audioProducerId,
+    )?.peerId;
+    if (peerId) {
+      const videoProducer = producers.find(
+        (p) => p.peerId === peerId && p.kind === "video",
+      );
+      return videoProducer?.producerId;
+    }
   }
 
   dataProducers(exceptPeerId: string) {

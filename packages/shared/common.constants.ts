@@ -22,6 +22,8 @@ export const SignalingEvent = {
   ConsumeData: "consume:data",
   /** 첫 프레임 유실 방지의 목적으로 consume srcObject 연결 완료 후 호출 */
   ConsumeResume: "consume:resume",
+  /** consume 종료 */
+  ConsumeClose: "consume:close",
   /** peer 입장 */
   EventPeerJoined: "event:peer:joined",
   /** peer에 새로운 producer가 생겼을 때 */
@@ -59,6 +61,7 @@ export const SignalingErrorCode = {
   ProduceDataFailed: 10010,
   ConsumeDataFailed: 10011,
   RoomLeaveFailed: 10012,
+  ConsumeCloseFailed: 10013,
 } as const;
 
 export type SignalingErrorCodeKey = keyof typeof SignalingErrorCode;
@@ -91,3 +94,5 @@ export type DataPayload =
         base64: string;
       };
     };
+
+export const VIDEO_CONSUMER_MAX = 10;
