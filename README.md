@@ -1,6 +1,13 @@
+## Documentation
+
+- [개요 (overview.md)](./docs/overview.md) — mediasoup SFU 기반 N:N 화상 통신 데모 소개
+- [프로젝트 구조 (structure.md)](./docs/structure.md) — 디렉터리/패키지 구성
+- [시그널링 프로토콜 ① 핸드셰이크 (protocol.01.handshake.md)](./docs/protocol.01.handshake.md) — 입장부터 양방향 미디어 송수신까지의 핸드셰이크
+- [시그널링 프로토콜 ② Active Speaker (protocol.02.active-speaker.md)](./docs/protocol.02.active-speaker.md) — 발언자 기반 video 구독 동적 교체 + 무깜빡임 UI
+
 ## Reference
 
-**공식 데모**
+**Mediasoup 공식 데모**
 
 https://github.com/versatica/mediasoup-demo
 
