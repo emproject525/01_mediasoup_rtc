@@ -4,3 +4,4 @@
 */dist
 */node_modules
 */.env
+packages/.DS_Store
